@@ -8,7 +8,7 @@ Demo attemps to distribute load over threads  with the notion of big triangle - 
 ![Buddha scene](https://github.com/komputeshader/DX12SoftwareRasterization/blob/main/BuddhaScene.png)
 
 # How to build and run:
-1. Clone this repo with git clone https://github.com/komputeshader/DX12SoftwareRasterization.git.
+1. git clone this repo.
 2. Open .sln file with VS.
 3. Build and run using VS.
 
