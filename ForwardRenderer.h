@@ -51,7 +51,6 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12Resource>
 		_visibleInstances[DX::FramesCount][Settings::FrustumsCount];
 
-	Scene* _currentScene;
 	std::unique_ptr<Culler> _culler;
 	std::unique_ptr<HardwareRasterization> _HWR;
 	std::unique_ptr<SoftwareRasterization> _SWR;
