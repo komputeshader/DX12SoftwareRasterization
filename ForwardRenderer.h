@@ -56,6 +56,8 @@ private:
 	std::unique_ptr<SoftwareRasterization> _SWR;
 	std::unique_ptr<FrameStatistics> _stats;
 	std::unique_ptr<Profiler> _profiler;
+	DXGI_QUERY_VIDEO_MEMORY_INFO _GPUMemoryInfo;
+	DXGI_QUERY_VIDEO_MEMORY_INFO _CPUMemoryInfo;
 	Timer _timer;
 	POINT _lastMousePos;
 

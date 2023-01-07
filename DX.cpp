@@ -9,6 +9,7 @@ namespace DX
 
 ComPtr<ID3D12Device> Device;
 ComPtr<IDXGIFactory4> Factory;
+ComPtr<IDXGIAdapter3> Adapter;
 ComPtr<ID3D12GraphicsCommandList> CommandList;
 ComPtr<ID3D12GraphicsCommandList> ComputeCommandList;
 ComPtr<ID3D12CommandAllocator> CommandAllocators[FramesCount];
@@ -126,6 +127,8 @@ void CreateDevice()
 				warpAdapter.Get(),
 				D3D_FEATURE_LEVEL_11_0,
 				IID_PPV_ARGS(&Device)));
+
+		ThrowIfFailed(warpAdapter.As(&Adapter));
 	}
 	else
 	{
@@ -137,6 +140,8 @@ void CreateDevice()
 				hardwareAdapter.Get(),
 				D3D_FEATURE_LEVEL_11_0,
 				IID_PPV_ARGS(&Device)));
+
+		ThrowIfFailed(hardwareAdapter.As(&Adapter));
 	}
 	NAME_D3D12_OBJECT(Device);
 

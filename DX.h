@@ -10,6 +10,7 @@ extern UINT FrameIndex;
 
 extern Microsoft::WRL::ComPtr<ID3D12Device> Device;
 extern Microsoft::WRL::ComPtr<IDXGIFactory4> Factory;
+extern Microsoft::WRL::ComPtr<IDXGIAdapter3> Adapter;
 extern Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> CommandList;
 extern Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> ComputeCommandList;
 extern Microsoft::WRL::ComPtr<ID3D12CommandAllocator>

@@ -291,6 +291,18 @@ void ForwardRenderer::OnRender()
 
 void ForwardRenderer::_beginFrameRendering()
 {
+	ThrowIfFailed(
+		DX::Adapter->QueryVideoMemoryInfo(
+			0,
+			DXGI_MEMORY_SEGMENT_GROUP_LOCAL,
+			&_GPUMemoryInfo));
+
+	ThrowIfFailed(
+		DX::Adapter->QueryVideoMemoryInfo(
+			0,
+			DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL,
+			&_CPUMemoryInfo));
+
 	ThrowIfFailed(DX::CommandAllocators[DX::FrameIndex]->Reset());
 	ThrowIfFailed(
 		DX::CommandList->Reset(
@@ -604,6 +616,14 @@ void ForwardRenderer::_GUINewFrame()
 		ImGui::Text(
 			"CS Invocations: %.3f Mil",
 			static_cast<float>(stats.CSInvocations) / 1'000'000.0f);
+
+		ImGui::Text(
+			"Current GPU Memory Usage: %.1f GB",
+			_GPUMemoryInfo.CurrentUsage / 1'000'000'000.0f);
+
+		ImGui::Text(
+			"Current CPU Memory Usage: %.1f GB",
+			_CPUMemoryInfo.CurrentUsage / 1'000'000'000.0f);
 
 		ImGui::Text(
 			"Frame Time: %.1f ms",
