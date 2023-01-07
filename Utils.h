@@ -3,86 +3,125 @@
 #include "Types.h"
 #include "Settings.h"
 
-class Utils
+namespace Utils
+{
+
+inline UINT DispatchSize(UINT groupSize, UINT elementsCount)
+{
+	assert(groupSize != 0 && "DispatchSize : groupSize cannot be 0");
+
+	return (elementsCount + groupSize - 1) / groupSize;
+}
+
+AABB MergeAABBs(const AABB& a, const AABB& b);
+
+AABB TransformAABB(
+	const AABB& a,
+	DirectX::FXMMATRIX m,
+	bool ignoreCenter = false);
+
+void GetFrustumPlanes(DirectX::FXMMATRIX m, Frustum& f);
+
+Microsoft::WRL::ComPtr<ID3DBlob> CompileShader(
+	const std::wstring& filename,
+	const D3D_SHADER_MACRO* defines,
+	const std::string& entrypoint,
+	const std::string& target);
+
+void CreateDefaultHeapBuffer(
+	ID3D12GraphicsCommandList* commandList,
+	const void* data,
+	UINT64 bufferSize,
+	Microsoft::WRL::ComPtr<ID3D12Resource>& defaultBuffer,
+	Microsoft::WRL::ComPtr<ID3D12Resource>& uploadBuffer,
+	D3D12_RESOURCE_STATES endState);
+
+void CreateCBResources(
+	// CB size is required to be 256-byte aligned.
+	UINT64 bufferSize,
+	void** data,
+	Microsoft::WRL::ComPtr<ID3D12Resource>& uploadBuffer);
+
+void CreateRS(
+	CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC desc,
+	Microsoft::WRL::ComPtr<ID3D12RootSignature>& rootSignature);
+
+UINT MipsCount(UINT width, UINT height);
+
+void GenerateHiZ(
+	ID3D12Resource* resource,
+	ID3D12GraphicsCommandList* commandList,
+	ID3D12RootSignature* HiZRS,
+	ID3D12PipelineState* HiZPSO,
+	UINT startSRV,
+	UINT startUAV,
+	UINT inputWidth,
+	UINT inputHeight);
+
+inline std::wstring GetAssetFullPath(LPCWSTR assetName)
+{
+	return Settings::Demo.AssetsPath + assetName;
+}
+
+inline UINT AlignForUavCounter(UINT bufferSize)
+{
+	UINT alignment = D3D12_UAV_COUNTER_PLACEMENT_ALIGNMENT;
+	return (bufferSize + (alignment - 1)) & ~(alignment - 1);
+}
+
+inline UINT AsUINT(float f)
+{
+	return *reinterpret_cast<UINT*>(&f);
+}
+
+class GPUBuffer
 {
 public:
 
-	static DirectX::XMFLOAT4X4 Identity4x4()
-	{
-		static DirectX::XMFLOAT4X4 I(
-			1.0f, 0.0f, 0.0f, 0.0f,
-			0.0f, 1.0f, 0.0f, 0.0f,
-			0.0f, 0.0f, 1.0f, 0.0f,
-			0.0f, 0.0f, 0.0f, 1.0f);
-
-		return I;
-	}
-
-	static inline UINT DispatchSize(UINT groupSize, UINT elementsCount)
-	{
-		assert(groupSize != 0 && "DispatchSize : groupSize cannot be 0");
-
-		return (elementsCount + groupSize - 1) / groupSize;
-	}
-
-	static AABB MergeAABBs(const AABB& a, const AABB& b);
-
-	static AABB TransformAABB(
-		const AABB& a,
-		DirectX::FXMMATRIX m,
-		bool ignoreCenter = false);
-
-	static void GetFrustumPlanes(DirectX::FXMMATRIX m, Frustum& f);
-
-	static Microsoft::WRL::ComPtr<ID3DBlob> CompileShader(
-		const std::wstring& filename,
-		const D3D_SHADER_MACRO* defines,
-		const std::string& entrypoint,
-		const std::string& target);
-
-	static void CreateDefaultHeapBuffer(
+	void Initialize(
 		ID3D12GraphicsCommandList* commandList,
 		const void* data,
-		UINT64 bufferSize,
-		Microsoft::WRL::ComPtr<ID3D12Resource>& defaultBuffer,
-		Microsoft::WRL::ComPtr<ID3D12Resource>& uploadBuffer,
-		D3D12_RESOURCE_STATES endState);
+		UINT elementsCount,
+		UINT strideInBytes,
+		D3D12_RESOURCE_STATES endState,
+		UINT SRVIndex,
+		LPCWSTR name);
 
-	static void CreateCBResources(
-		// CB size is required to be 256-byte aligned.
-		UINT64 bufferSize,
-		void** data,
-		Microsoft::WRL::ComPtr<ID3D12Resource>& uploadBuffer);
+	GPUBuffer() = default;
+	GPUBuffer(const GPUBuffer&) = delete;
+	GPUBuffer& operator=(const GPUBuffer&) = delete;
 
-	static void CreateRS(
-		CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC desc,
-		Microsoft::WRL::ComPtr<ID3D12RootSignature>& rootSignature);
-
-	static UINT MipsCount(UINT width, UINT height);
-
-	static void GenerateHiZ(
-		ID3D12Resource* resource,
-		ID3D12GraphicsCommandList* commandList,
-		ID3D12RootSignature* HiZRS,
-		ID3D12PipelineState* HiZPSO,
-		UINT startSRV,
-		UINT startUAV,
-		UINT inputWidth,
-		UINT inputHeight);
-
-	static inline std::wstring GetAssetFullPath(LPCWSTR assetName)
+	ID3D12Resource* Get()
 	{
-		return Settings::Demo.AssetsPath + assetName;
+		return _buffer.Get();
 	}
 
-	static inline UINT AlignForUavCounter(UINT bufferSize)
+	D3D12_VERTEX_BUFFER_VIEW& GetVBView()
 	{
-		UINT alignment = D3D12_UAV_COUNTER_PLACEMENT_ALIGNMENT;
-		return (bufferSize + (alignment - 1)) & ~(alignment - 1);
+		assert(_isVB);
+		return _VBView;
 	}
 
-	static inline UINT AsUINT(float f)
+	D3D12_INDEX_BUFFER_VIEW& GetIBView()
 	{
-		return *reinterpret_cast<UINT*>(&f);
+		assert(_isIB);
+		return _IBView;
 	}
+
+	CD3DX12_GPU_DESCRIPTOR_HANDLE GetSRV()
+	{
+		return _SRV;
+	}
+
+private:
+
+	Microsoft::WRL::ComPtr<ID3D12Resource> _buffer;
+	Microsoft::WRL::ComPtr<ID3D12Resource> _bufferUpload;
+	D3D12_VERTEX_BUFFER_VIEW _VBView;
+	D3D12_INDEX_BUFFER_VIEW _IBView;
+	CD3DX12_GPU_DESCRIPTOR_HANDLE _SRV;
+	bool _isVB = false;
+	bool _isIB = false;
+};
+
 };

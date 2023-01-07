@@ -254,9 +254,6 @@ void ForwardRenderer::OnRender()
 	else
 	{
 		_HWR->Draw(
-			Scene::CurrentScene->depthVertexBufferView,
-			Scene::CurrentScene->vertexBufferView,
-			Scene::CurrentScene->indexBufferView,
 			_renderTargets[DX::FrameIndex].Get(),
 			Descriptors::RT.GetCPUHandle(ForwardRendererRTV + DX::FrameIndex));
 	}
@@ -439,15 +436,23 @@ void ForwardRenderer::_onRasterizerSwitch()
 		CD3DX12_RESOURCE_BARRIER barriers[] =
 		{
 			CD3DX12_RESOURCE_BARRIER::Transition(
-				Scene::CurrentScene->depthVertexBuffer.Get(),
+				Scene::CurrentScene->positionsGPU.Get(),
 				D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
 			CD3DX12_RESOURCE_BARRIER::Transition(
-				Scene::CurrentScene->vertexBuffer.Get(),
+				Scene::CurrentScene->normalsGPU.Get(),
 				D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
 			CD3DX12_RESOURCE_BARRIER::Transition(
-				Scene::CurrentScene->indexBuffer.Get(),
+				Scene::CurrentScene->colorsGPU.Get(),
+				D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
+			CD3DX12_RESOURCE_BARRIER::Transition(
+				Scene::CurrentScene->texcoordsGPU.Get(),
+				D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
+			CD3DX12_RESOURCE_BARRIER::Transition(
+				Scene::CurrentScene->indicesGPU.Get(),
 				D3D12_RESOURCE_STATE_INDEX_BUFFER,
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE)
 		};
@@ -461,15 +466,23 @@ void ForwardRenderer::_onRasterizerSwitch()
 		CD3DX12_RESOURCE_BARRIER barriers[] =
 		{
 			CD3DX12_RESOURCE_BARRIER::Transition(
-				Scene::CurrentScene->depthVertexBuffer.Get(),
+				Scene::CurrentScene->positionsGPU.Get(),
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 				D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER),
 			CD3DX12_RESOURCE_BARRIER::Transition(
-				Scene::CurrentScene->vertexBuffer.Get(),
+				Scene::CurrentScene->normalsGPU.Get(),
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 				D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER),
 			CD3DX12_RESOURCE_BARRIER::Transition(
-				Scene::CurrentScene->indexBuffer.Get(),
+				Scene::CurrentScene->colorsGPU.Get(),
+				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+				D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER),
+			CD3DX12_RESOURCE_BARRIER::Transition(
+				Scene::CurrentScene->texcoordsGPU.Get(),
+				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+				D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER),
+			CD3DX12_RESOURCE_BARRIER::Transition(
+				Scene::CurrentScene->indicesGPU.Get(),
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 				D3D12_RESOURCE_STATE_INDEX_BUFFER)
 		};

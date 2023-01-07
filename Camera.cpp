@@ -116,10 +116,14 @@ void Camera::UpdateViewMatrix()
 		XMVECTOR nearLook = L * _nearZ;
 		XMVECTOR nearUp = U * nearWindowHalfHeight;
 		XMVECTOR nearRight = R * nearWindowHalfWidth;
-		XMStoreFloat4(&_frustum.cornersWS[0], P + nearLook + nearUp - nearRight);
-		XMStoreFloat4(&_frustum.cornersWS[1], P + nearLook + nearUp + nearRight);
-		XMStoreFloat4(&_frustum.cornersWS[2], P + nearLook - nearUp + nearRight);
-		XMStoreFloat4(&_frustum.cornersWS[3], P + nearLook - nearUp - nearRight);
+		XMStoreFloat4(
+			&_frustum.cornersWS[0], P + nearLook + nearUp - nearRight);
+		XMStoreFloat4(
+			&_frustum.cornersWS[1], P + nearLook + nearUp + nearRight);
+		XMStoreFloat4(
+			&_frustum.cornersWS[2], P + nearLook - nearUp + nearRight);
+		XMStoreFloat4(
+			&_frustum.cornersWS[3], P + nearLook - nearUp - nearRight);
 
 		float farWindowHalfWidth = GetFarWindowWidth() * 0.5f;
 		float farWindowHalfHeight = GetFarWindowHeight() * 0.5f;

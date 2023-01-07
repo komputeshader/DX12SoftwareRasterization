@@ -27,6 +27,23 @@ void HashCombine(size_t& seed, size_t hash)
 	seed ^= hash;
 }
 
+struct Vertex
+{
+	VertexPosition position;
+	VertexNormal normal;
+	VertexColor color;
+	VertexUV uv;
+
+	bool operator==(const Vertex& other) const
+	{
+		return
+			position == other.position &&
+			normal == other.normal &&
+			color == other.color &&
+			uv == other.uv;
+	}
+};
+
 namespace std
 {
 	template<> struct hash<DirectX::XMFLOAT2>
@@ -73,10 +90,18 @@ namespace std
 		size_t operator()(const Vertex& vertex) const
 		{
 			size_t seed = 0;
-			HashCombine(seed, hash<DirectX::XMFLOAT3>()(vertex.position));
-			HashCombine(seed, hash<DirectX::XMFLOAT3>()(vertex.normal));
-			HashCombine(seed, hash<DirectX::XMFLOAT3>()(vertex.color));
-			HashCombine(seed, hash<DirectX::XMFLOAT2>()(vertex.uv));
+			HashCombine(
+				seed,
+				hash<DirectX::XMFLOAT3>()(vertex.position.position));
+			HashCombine(
+				seed,
+				hash<DirectX::XMFLOAT3>()(vertex.normal.normal));
+			HashCombine(
+				seed,
+				hash<DirectX::XMFLOAT3>()(vertex.color.color));
+			HashCombine(
+				seed,
+				hash<DirectX::XMFLOAT2>()(vertex.uv.uv));
 			return seed;
 		}
 	};
@@ -126,7 +151,7 @@ void Scene::LoadBuddha()
 		instancesCPU.size());
 	MaxSceneMeshesMetaCount = max(
 		MaxSceneMeshesMetaCount,
-		mutualMeshMeta.size());
+		meshesMetaCPU.size());
 }
 
 void Scene::LoadPlant()
@@ -173,7 +198,7 @@ void Scene::LoadPlant()
 		instancesCPU.size());
 	MaxSceneMeshesMetaCount = max(
 		MaxSceneMeshesMetaCount,
-		mutualMeshMeta.size());
+		meshesMetaCPU.size());
 }
 
 void Scene::_loadObj(
@@ -218,9 +243,9 @@ void Scene::_loadObj(
 	for (size_t s = 0; s < shapes.size(); s++)
 	{
 		MeshMeta mesh{};
-		mesh.startIndexLocation = mutualIndices.size();
+		mesh.startIndexLocation = indicesCPU.size();
 		mesh.baseVertexLocation = 0;//vertices.size();
-		mesh.indexCountPerInstance = mutualIndices.size();
+		mesh.indexCountPerInstance = indicesCPU.size();
 
 		XMVECTOR min = g_XMFltMax.v;
 		XMVECTOR max = -g_XMFltMax.v;
@@ -250,23 +275,27 @@ void Scene::_loadObj(
 
 				// access to vertex
 				tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
-				tmpVertex.position = {
+				tmpVertex.position.position = {
 					attrib.vertices[3 * size_t(idx.vertex_index) + 0],
 					attrib.vertices[3 * size_t(idx.vertex_index) + 1],
 					attrib.vertices[3 * size_t(idx.vertex_index) + 2]
 				};
 
-				tmpVertex.position.x *= scale;
-				tmpVertex.position.y *= scale;
-				tmpVertex.position.z *= scale;
+				tmpVertex.position.position.x *= scale;
+				tmpVertex.position.position.y *= scale;
+				tmpVertex.position.position.z *= scale;
 
-				min = XMVectorMin(min, XMLoadFloat3(&tmpVertex.position));
-				max = XMVectorMax(max, XMLoadFloat3(&tmpVertex.position));
+				min = XMVectorMin(
+					min,
+					XMLoadFloat3(&tmpVertex.position.position));
+				max = XMVectorMax(
+					max,
+					XMLoadFloat3(&tmpVertex.position.position));
 
 				// Check if `normal_index` is zero or positive. negative = no normal data
 				if (idx.normal_index >= 0)
 				{
-					tmpVertex.normal = {
+					tmpVertex.normal.normal = {
 						attrib.normals[3 * size_t(idx.normal_index) + 0],
 						attrib.normals[3 * size_t(idx.normal_index) + 1],
 						attrib.normals[3 * size_t(idx.normal_index) + 2]
@@ -276,23 +305,25 @@ void Scene::_loadObj(
 				// Check if `texcoord_index` is zero or positive. negative = no texcoord data
 				if (idx.texcoord_index >= 0)
 				{
-					tmpVertex.uv = {
+					tmpVertex.uv.uv = {
 						attrib.texcoords[2 * size_t(idx.texcoord_index) + 0],
 						attrib.texcoords[2 * size_t(idx.texcoord_index) + 1]
 					};
 				}
 
-				tmpVertex.color = faceDiffuse;
+				tmpVertex.color.color = faceDiffuse;
 
 				if (uniqueVertices.count(tmpVertex) == 0)
 				{
-					uniqueVertices[tmpVertex] = mutualVertices.size();
+					uniqueVertices[tmpVertex] = positionsCPU.size();
 
-					mutualDepthVertices.push_back({ tmpVertex.position });
-					mutualVertices.push_back(tmpVertex);
+					positionsCPU.push_back(tmpVertex.position);
+					normalsCPU.push_back(tmpVertex.normal);
+					colorsCPU.push_back(tmpVertex.color);
+					texcoordsCPU.push_back(tmpVertex.uv);
 				}
 
-				mutualIndices.push_back(uniqueVertices[tmpVertex]);
+				indicesCPU.push_back(uniqueVertices[tmpVertex]);
 			}
 
 			index_offset += fv;
@@ -304,7 +335,7 @@ void Scene::_loadObj(
 		XMStoreFloat3(&mesh.AABB.center, (min + max) * 0.5f);
 		XMStoreFloat3(&mesh.AABB.extents, (max - min) * 0.5f);
 		mesh.indexCountPerInstance =
-			mutualIndices.size() - mesh.indexCountPerInstance;
+			indicesCPU.size() - mesh.indexCountPerInstance;
 		mesh.instanceCount = 1;
 		mesh.startInstanceLocation = 0;
 		meshesMeta.push_back(mesh);
@@ -322,12 +353,12 @@ void Scene::_loadObj(
 		(objectMax - objectMin) * 0.5f);
 
 	Prefab newPrefab;
-	newPrefab.meshesOffset = mutualMeshMeta.size();
+	newPrefab.meshesOffset = meshesMetaCPU.size();
 	newPrefab.meshesCount = meshesMeta.size();
 	prefabs.push_back(newPrefab);
 
-	mutualMeshMeta.insert(
-		mutualMeshMeta.end(),
+	meshesMetaCPU.insert(
+		meshesMetaCPU.end(),
 		meshesMeta.begin(),
 		meshesMeta.end());
 
@@ -343,7 +374,7 @@ void Scene::_loadObj(
 	for (UINT mesh = 0; mesh < newPrefab.meshesCount; mesh++)
 	{
 		UINT meshIndex = newPrefab.meshesOffset + mesh;
-		auto& currentMesh = mutualMeshMeta[meshIndex];
+		auto& currentMesh = meshesMetaCPU[meshIndex];
 		currentMesh.instanceCount = totalMeshInstances;
 		currentMesh.startInstanceLocation =
 			newInstancesOffset + mesh * totalMeshInstances;
@@ -376,173 +407,75 @@ void Scene::_loadObj(
 
 void Scene::_createVBResources(ScenesIndices sceneIndex)
 {
-	UINT64 bufferSize =
-		mutualVertices.size() *
-		sizeof(decltype(mutualVertices)::value_type);
-	Utils::CreateDefaultHeapBuffer(
+	positionsGPU.Initialize(
 		DX::CommandList.Get(),
-		mutualVertices.data(),
-		bufferSize,
-		vertexBuffer,
-		vertexBufferUpload,
-		D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-	NAME_D3D12_OBJECT(vertexBuffer);
-	NAME_D3D12_OBJECT(vertexBufferUpload);
+		positionsCPU.data(),
+		positionsCPU.size(),
+		sizeof(decltype(positionsCPU)::value_type),
+		D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+		VertexPositionsSRV + sceneIndex,
+		L"VertexPositions");
 
-	vertexBufferView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
-	vertexBufferView.StrideInBytes =
-		sizeof(decltype(mutualVertices)::value_type);
-	vertexBufferView.SizeInBytes = bufferSize;
-
-	bufferSize =
-		mutualDepthVertices.size() *
-		sizeof(decltype(mutualDepthVertices)::value_type);
-	Utils::CreateDefaultHeapBuffer(
+	normalsGPU.Initialize(
 		DX::CommandList.Get(),
-		mutualDepthVertices.data(),
-		bufferSize,
-		depthVertexBuffer,
-		depthVertexBufferUpload,
-		D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-	NAME_D3D12_OBJECT(depthVertexBuffer);
-	NAME_D3D12_OBJECT(depthVertexBufferUpload);
+		normalsCPU.data(),
+		normalsCPU.size(),
+		sizeof(decltype(normalsCPU)::value_type),
+		D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+		VertexNormalsSRV + sceneIndex,
+		L"VertexNormals");
 
-	depthVertexBufferView.BufferLocation =
-		depthVertexBuffer->GetGPUVirtualAddress();
-	depthVertexBufferView.StrideInBytes =
-		sizeof(decltype(mutualDepthVertices)::value_type);
-	depthVertexBufferView.SizeInBytes = bufferSize;
+	colorsGPU.Initialize(
+		DX::CommandList.Get(),
+		colorsCPU.data(),
+		colorsCPU.size(),
+		sizeof(decltype(colorsCPU)::value_type),
+		D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+		VertexColorsSRV + sceneIndex,
+		L"VertexColors");
 
-	// VB SRVs
-	D3D12_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
-	SRVDesc.Shader4ComponentMapping =
-		D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	SRVDesc.Format = DXGI_FORMAT_UNKNOWN;
-	SRVDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-	SRVDesc.Buffer.FirstElement = 0;
-	SRVDesc.Buffer.NumElements = mutualDepthVertices.size();
-	SRVDesc.Buffer.StructureByteStride =
-		sizeof(decltype(mutualDepthVertices)::value_type);
-	SRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-	DX::Device->CreateShaderResourceView(
-		depthVertexBuffer.Get(),
-		&SRVDesc,
-		Descriptors::SV.GetCPUHandle(DepthVerticesSRV + sceneIndex));
-
-	depthVerticesSRV =
-		Descriptors::SV.GetGPUHandle(DepthVerticesSRV + sceneIndex);
-
-	SRVDesc.Buffer.NumElements = mutualVertices.size();
-	SRVDesc.Buffer.StructureByteStride =
-		sizeof(decltype(mutualVertices)::value_type);
-	DX::Device->CreateShaderResourceView(
-		vertexBuffer.Get(),
-		&SRVDesc,
-		Descriptors::SV.GetCPUHandle(VerticesSRV + sceneIndex));
-
-	verticesSRV =
-		Descriptors::SV.GetGPUHandle(VerticesSRV + sceneIndex);
+	texcoordsGPU.Initialize(
+		DX::CommandList.Get(),
+		texcoordsCPU.data(),
+		texcoordsCPU.size(),
+		sizeof(decltype(texcoordsCPU)::value_type),
+		D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+		VertexTexcoordsSRV + sceneIndex,
+		L"VertexTexcoords");
 }
 
 void Scene::_createIBResources(ScenesIndices sceneIndex)
 {
-	UINT64 bufferSize =
-		mutualIndices.size() * sizeof(decltype(mutualIndices)::value_type);
-	Utils::CreateDefaultHeapBuffer(
+	indicesGPU.Initialize(
 		DX::CommandList.Get(),
-		mutualIndices.data(),
-		bufferSize,
-		indexBuffer,
-		indexBufferUpload,
-		D3D12_RESOURCE_STATE_INDEX_BUFFER);
-	NAME_D3D12_OBJECT(indexBuffer);
-	NAME_D3D12_OBJECT(indexBufferUpload);
-
-	indexBufferView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
-	indexBufferView.SizeInBytes = bufferSize;
-	indexBufferView.Format = DXGI_FORMAT_R32_UINT;
-
-	// indices SRV
-	D3D12_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
-	SRVDesc.Shader4ComponentMapping =
-		D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	SRVDesc.Format = DXGI_FORMAT_UNKNOWN;
-	SRVDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-	SRVDesc.Buffer.FirstElement = 0;
-	SRVDesc.Buffer.NumElements = mutualIndices.size();
-	SRVDesc.Buffer.StructureByteStride =
-		sizeof(decltype(mutualIndices)::value_type);
-	SRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-	DX::Device->CreateShaderResourceView(
-		indexBuffer.Get(),
-		&SRVDesc,
-		Descriptors::SV.GetCPUHandle(IndicesSRV + sceneIndex));
-
-	indicesSRV =
-		Descriptors::SV.GetGPUHandle(IndicesSRV + sceneIndex);
+		indicesCPU.data(),
+		indicesCPU.size(),
+		sizeof(decltype(indicesCPU)::value_type),
+		D3D12_RESOURCE_STATE_INDEX_BUFFER,
+		IndicesSRV + sceneIndex,
+		L"Indices");
 }
 
 void Scene::_createMeshMetaResources(ScenesIndices sceneIndex)
 {
-	UINT64 bufferSize =
-		mutualMeshMeta.size() * sizeof(decltype(mutualMeshMeta)::value_type);
-	Utils::CreateDefaultHeapBuffer(
+	meshesMetaGPU.Initialize(
 		DX::CommandList.Get(),
-		mutualMeshMeta.data(),
-		bufferSize,
-		meshMetaBuffer,
-		meshMetaBufferUpload,
-		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-	NAME_D3D12_OBJECT(meshMetaBuffer);
-	NAME_D3D12_OBJECT(meshMetaBufferUpload);
-
-	D3D12_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
-	SRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	SRVDesc.Format = DXGI_FORMAT_UNKNOWN;
-	SRVDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-	SRVDesc.Buffer.FirstElement = 0;
-	SRVDesc.Buffer.NumElements = mutualMeshMeta.size();
-	SRVDesc.Buffer.StructureByteStride =
-		sizeof(decltype(mutualMeshMeta)::value_type);
-	SRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-	DX::Device->CreateShaderResourceView(
-		meshMetaBuffer.Get(),
-		&SRVDesc,
-		Descriptors::SV.GetCPUHandle(MeshMetaSRV + sceneIndex));
-
-	meshMetaSRV =
-		Descriptors::SV.GetGPUHandle(MeshMetaSRV + sceneIndex);
+		meshesMetaCPU.data(),
+		meshesMetaCPU.size(),
+		sizeof(decltype(meshesMetaCPU)::value_type),
+		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+		MeshesMetaSRV + sceneIndex,
+		L"MeshesMeta");
 }
 
 void Scene::_createInstancesBufferResources(ScenesIndices sceneIndex)
 {
-	// main buffer with instances data
-	UINT64 bufferSize =
-		instancesCPU.size() * sizeof(decltype(instancesCPU)::value_type);
-	Utils::CreateDefaultHeapBuffer(
+	instancesGPU.Initialize(
 		DX::CommandList.Get(),
 		instancesCPU.data(),
-		bufferSize,
-		instancesGPU,
-		instancesGPUUpload,
-		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-	NAME_D3D12_OBJECT(instancesGPU);
-	NAME_D3D12_OBJECT(instancesGPUUpload);
-
-	D3D12_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
-	SRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	SRVDesc.Format = DXGI_FORMAT_UNKNOWN;
-	SRVDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-	SRVDesc.Buffer.FirstElement = 0;
-	SRVDesc.Buffer.NumElements = instancesCPU.size();
-	SRVDesc.Buffer.StructureByteStride =
-		sizeof(decltype(instancesCPU)::value_type);
-	SRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-	DX::Device->CreateShaderResourceView(
-		instancesGPU.Get(),
-		&SRVDesc,
-		Descriptors::SV.GetCPUHandle(InstancesSRV + sceneIndex));
-
-	instancesSRV =
-		Descriptors::SV.GetGPUHandle(InstancesSRV + sceneIndex);
+		instancesCPU.size(),
+		sizeof(decltype(instancesCPU)::value_type),
+		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+		InstancesSRV + sceneIndex,
+		L"Instances");
 }

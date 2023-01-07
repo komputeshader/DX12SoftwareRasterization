@@ -7,18 +7,21 @@
 // NOTE: root signatures are dependent on that ordering
 enum CBVSRVUAVIndices
 {
-	MeshMetaSRV,
-	InstancesSRV = MeshMetaSRV + ScenesCount,
+	MeshesMetaSRV,
+	InstancesSRV = MeshesMetaSRV + ScenesCount,
 	CullingCountersSRV = InstancesSRV + ScenesCount,
 	CullingCountersUAV = CullingCountersSRV + Settings::FrustumsCount,
 	GUIFontTextureSRV = CullingCountersUAV + Settings::FrustumsCount,
 	ShadowMapSRV,
-	DepthVerticesSRV,
-	VerticesSRV = DepthVerticesSRV + ScenesCount,
-	IndicesSRV = VerticesSRV + ScenesCount,
+	VertexPositionsSRV,
+	VertexNormalsSRV = VertexPositionsSRV + ScenesCount,
+	VertexColorsSRV = VertexNormalsSRV + ScenesCount,
+	VertexTexcoordsSRV = VertexColorsSRV + ScenesCount,
+	IndicesSRV = VertexTexcoordsSRV + ScenesCount,
 	SWRDepthSRV = IndicesSRV + ScenesCount,
 	SWRDepthMipsSRV,
-	SWRDepthMipsUAV = SWRDepthMipsSRV + Settings::Demo.BackBufferMipsCount,
+	SWRDepthMipsUAV = SWRDepthMipsSRV +
+		Settings::Demo.BackBufferMipsCount,
 	SWRRenderTargetUAV = SWRDepthMipsUAV +
 		Settings::Demo.BackBufferMipsCount,
 	SWRShadowMapSRV,
@@ -38,8 +41,10 @@ enum CBVSRVUAVIndices
 	CulledCommandsUAV = VisibleInstancesUAV + Settings::FrustumsCount,
 	SWRCulledCommandsUAV = CulledCommandsUAV + Settings::FrustumsCount,
 
-	PerFrameDescriptorsCount = SWRCulledCommandsUAV + Settings::FrustumsCount - VisibleInstancesSRV,
-	CBVUAVSRVCount = SingleDescriptorsCount + PerFrameDescriptorsCount * DX::FramesCount
+	PerFrameDescriptorsCount = SWRCulledCommandsUAV +
+		Settings::FrustumsCount - VisibleInstancesSRV,
+	CBVUAVSRVCount = SingleDescriptorsCount +
+		PerFrameDescriptorsCount * DX::FramesCount
 };
 
 enum RTVIndices

@@ -6,12 +6,11 @@ cbuffer DepthSceneCB : register(b0)
 	float2 OutputRes;
 };
 
-typedef DepthVertex Vertex;
+StructuredBuffer<VertexPosition> Positions : register(t0);
 
-StructuredBuffer<Vertex> Vertices : register(t0);
-StructuredBuffer<uint> Indices : register(t1);
-StructuredBuffer<Instance> Instances : register(t2);
-StructuredBuffer<BigTriangle> BigTriangles : register(t3);
+StructuredBuffer<uint> Indices : register(t8);
+StructuredBuffer<Instance> Instances : register(t9);
+StructuredBuffer<BigTriangle> BigTriangles : register(t10);
 
 RWTexture2D<uint> Depth : register(u0);
 
@@ -53,16 +52,23 @@ void main(
 
 		// no tests for this triangle, since it had passed them already
 
-		Vertex v0, v1, v2;
-		GetTriangleVertices(
+		uint v0Idx, v1Idx, v2Idx;
+		GetTriangleIndices(
 			t.triangleIndex,
+			v0Idx,
+			v1Idx,
+			v2Idx);
+
+		float3 v0P, v1P, v2P;
+		GetTriangleVertexPositions(
+			v0Idx, v1Idx, v2Idx,
 			t.baseVertexLocation,
-			v0, v1, v2);
+			v0P, v1P, v2P);
 
 		float4 p0CS, p1CS, p2CS;
 		GetCSPositions(
 			t.instanceIndex,
-			v0.position, v1.position, v2.position,
+			v0P, v1P, v2P,
 			p0CS, p1CS, p2CS);
 
 		float invW0 = 1.0 / p0CS.w;

@@ -223,33 +223,28 @@ void HardwareRasterization::Update()
 }
 
 void HardwareRasterization::Draw(
-	const D3D12_VERTEX_BUFFER_VIEW& depthVertexBufferView,
-	const D3D12_VERTEX_BUFFER_VIEW& vertexBufferView,
-	const D3D12_INDEX_BUFFER_VIEW& indexBufferView,
 	ID3D12Resource* renderTarget,
 	CD3DX12_CPU_DESCRIPTOR_HANDLE RTVHandle)
 {
-	_beginFrame(indexBufferView);
-	_drawDepth(depthVertexBufferView);
+	_beginFrame();
+	_drawDepth();
 	_drawShadows();
 	_drawOpaque(
-		vertexBufferView,
 		renderTarget,
 		RTVHandle);
 	_endFrame();
 }
 
-void HardwareRasterization::_beginFrame(
-	const D3D12_INDEX_BUFFER_VIEW& indexBufferView)
+void HardwareRasterization::_beginFrame()
 {
 	DX::CommandList->IASetPrimitiveTopology(
 		D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	DX::CommandList->IASetIndexBuffer(&indexBufferView);
+	DX::CommandList->IASetIndexBuffer(
+		&Scene::CurrentScene->indicesGPU.GetIBView());
 	DX::CommandList->SetGraphicsRootSignature(_HWRRS.Get());
 }
 
-void HardwareRasterization::_drawDepth(
-	const D3D12_VERTEX_BUFFER_VIEW& depthVertexBufferView)
+void HardwareRasterization::_drawDepth()
 {
 	PIXBeginEvent(DX::CommandList.Get(), 0, L"Depth Pass");
 
@@ -261,9 +256,12 @@ void HardwareRasterization::_drawDepth(
 		2,
 		Settings::CullingEnabled
 		? Descriptors::SV.GetGPUHandle(VisibleInstancesSRV + DX::FrameIndex * PerFrameDescriptorsCount)
-		: Scene::CurrentScene->instancesSRV);
+		: Scene::CurrentScene->instancesGPU.GetSRV());
 	DX::CommandList->SetPipelineState(_depthPSO.Get());
-	DX::CommandList->IASetVertexBuffers(0, 1, &depthVertexBufferView);
+	DX::CommandList->IASetVertexBuffers(
+		0,
+		1,
+		&Scene::CurrentScene->positionsGPU.GetVBView());
 	DX::CommandList->RSSetViewports(1, &_viewport);
 	DX::CommandList->RSSetScissorRects(1, &_scissorRect);
 	auto DSVHandle = Descriptors::DS.GetCPUHandle(HWRDepthDSV);
@@ -280,7 +278,7 @@ void HardwareRasterization::_drawDepth(
 	{
 		DX::CommandList->ExecuteIndirect(
 			_commandSignature.Get(),
-			Scene::CurrentScene->mutualMeshMeta.size(),
+			Scene::CurrentScene->meshesMetaCPU.size(),
 			_culledCommands[DX::FrameIndex][0].Get(),
 			0,
 			_culledCommands[DX::FrameIndex][0].Get(),
@@ -293,7 +291,7 @@ void HardwareRasterization::_drawDepth(
 			for (UINT mesh = 0; mesh < prefab.meshesCount; mesh++)
 			{
 				const auto& currentMesh =
-					Scene::CurrentScene->mutualMeshMeta[prefab.meshesOffset + mesh];
+					Scene::CurrentScene->meshesMetaCPU[prefab.meshesOffset + mesh];
 				UINT commandData[] =
 				{
 					currentMesh.startInstanceLocation
@@ -345,7 +343,7 @@ void HardwareRasterization::_drawShadows()
 			Settings::CullingEnabled
 			? Descriptors::SV.GetGPUHandle(VisibleInstancesSRV + 1 + cascade +
 				DX::FrameIndex * PerFrameDescriptorsCount)
-			: Scene::CurrentScene->instancesSRV);
+			: Scene::CurrentScene->instancesGPU.GetSRV());
 		auto shadowMapDSVHandle =
 			Descriptors::DS.GetCPUHandle(CascadeDSV + cascade);
 		DX::CommandList->OMSetRenderTargets(
@@ -360,7 +358,7 @@ void HardwareRasterization::_drawShadows()
 		{
 			DX::CommandList->ExecuteIndirect(
 				_commandSignature.Get(),
-				Scene::CurrentScene->mutualMeshMeta.size(),
+				Scene::CurrentScene->meshesMetaCPU.size(),
 				_culledCommands[DX::FrameIndex][1 + cascade].Get(),
 				0,
 				_culledCommands[DX::FrameIndex][1 + cascade].Get(),
@@ -373,7 +371,7 @@ void HardwareRasterization::_drawShadows()
 				for (UINT mesh = 0; mesh < prefab.meshesCount; mesh++)
 				{
 					const auto& currentMesh =
-						Scene::CurrentScene->mutualMeshMeta[prefab.meshesOffset + mesh];
+						Scene::CurrentScene->meshesMetaCPU[prefab.meshesOffset + mesh];
 					UINT commandData[] =
 					{
 						currentMesh.startInstanceLocation
@@ -404,7 +402,6 @@ void HardwareRasterization::_drawShadows()
 }
 
 void HardwareRasterization::_drawOpaque(
-	const D3D12_VERTEX_BUFFER_VIEW& vertexBufferView,
 	ID3D12Resource* renderTarget,
 	CD3DX12_CPU_DESCRIPTOR_HANDLE RTVHandle)
 {
@@ -421,7 +418,14 @@ void HardwareRasterization::_drawOpaque(
 
 	DX::CommandList->RSSetViewports(1, &_viewport);
 	DX::CommandList->RSSetScissorRects(1, &_scissorRect);
-	DX::CommandList->IASetVertexBuffers(0, 1, &vertexBufferView);
+	D3D12_VERTEX_BUFFER_VIEW VBVs[] =
+	{
+		Scene::CurrentScene->positionsGPU.GetVBView(),
+		Scene::CurrentScene->normalsGPU.GetVBView(),
+		Scene::CurrentScene->colorsGPU.GetVBView(),
+		Scene::CurrentScene->texcoordsGPU.GetVBView()
+	};
+	DX::CommandList->IASetVertexBuffers(0, _countof(VBVs), VBVs);
 	DX::CommandList->SetPipelineState(_opaquePSO.Get());
 	DX::CommandList->SetGraphicsRootConstantBufferView(
 		0,
@@ -429,8 +433,9 @@ void HardwareRasterization::_drawOpaque(
 	DX::CommandList->SetGraphicsRootDescriptorTable(
 		2,
 		Settings::CullingEnabled
-		? Descriptors::SV.GetGPUHandle(VisibleInstancesSRV + DX::FrameIndex * PerFrameDescriptorsCount)
-		: Scene::CurrentScene->instancesSRV);
+		? Descriptors::SV.GetGPUHandle(VisibleInstancesSRV +
+			DX::FrameIndex * PerFrameDescriptorsCount)
+		: Scene::CurrentScene->instancesGPU.GetSRV());
 	DX::CommandList->SetGraphicsRootDescriptorTable(
 		3, Descriptors::SV.GetGPUHandle(ShadowMapSRV));
 	auto DSVHandle = Descriptors::DS.GetCPUHandle(HWRDepthDSV);
@@ -441,7 +446,7 @@ void HardwareRasterization::_drawOpaque(
 	{
 		DX::CommandList->ExecuteIndirect(
 			_commandSignature.Get(),
-			Scene::CurrentScene->mutualMeshMeta.size(),
+			Scene::CurrentScene->meshesMetaCPU.size(),
 			_culledCommands[DX::FrameIndex][0].Get(),
 			0,
 			_culledCommands[DX::FrameIndex][0].Get(),
@@ -454,7 +459,7 @@ void HardwareRasterization::_drawOpaque(
 			for (UINT mesh = 0; mesh < prefab.meshesCount; mesh++)
 			{
 				const auto& currentMesh =
-					Scene::CurrentScene->mutualMeshMeta[prefab.meshesOffset + mesh];
+					Scene::CurrentScene->meshesMetaCPU[prefab.meshesOffset + mesh];
 				UINT commandData[] =
 				{
 					currentMesh.startInstanceLocation
@@ -613,8 +618,8 @@ void HardwareRasterization::_createOpaquePassPSO()
 			"NORMAL",
 			0,
 			DXGI_FORMAT_R32G32B32_FLOAT,
+			1,
 			0,
-			16,
 			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
 			0
 		},
@@ -622,8 +627,8 @@ void HardwareRasterization::_createOpaquePassPSO()
 			"COLOR",
 			0,
 			DXGI_FORMAT_R32G32B32_FLOAT,
+			2,
 			0,
-			32,
 			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
 			0
 		},
@@ -631,8 +636,8 @@ void HardwareRasterization::_createOpaquePassPSO()
 			"TEXCOORD",
 			0,
 			DXGI_FORMAT_R32G32_FLOAT,
+			3,
 			0,
-			48,
 			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
 			0
 		}

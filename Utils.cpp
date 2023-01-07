@@ -6,7 +6,10 @@
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
 
-AABB Utils::MergeAABBs(const AABB& a, const AABB& b)
+namespace Utils
+{
+
+AABB MergeAABBs(const AABB& a, const AABB& b)
 {
 	XMVECTOR ac = XMLoadFloat3(&a.center);
 	XMVECTOR ae = XMLoadFloat3(&a.extents);
@@ -28,7 +31,7 @@ AABB Utils::MergeAABBs(const AABB& a, const AABB& b)
 	return merged;
 }
 
-AABB Utils::TransformAABB(
+AABB TransformAABB(
 	const AABB& a,
 	DirectX::FXMMATRIX m,
 	bool ignoreCenter)
@@ -64,7 +67,7 @@ AABB Utils::TransformAABB(
 	return result;
 }
 
-ComPtr<ID3DBlob> Utils::CompileShader(
+ComPtr<ID3DBlob> CompileShader(
 	const std::wstring& filename,
 	const D3D_SHADER_MACRO* defines,
 	const std::string& entrypoint,
@@ -102,7 +105,7 @@ ComPtr<ID3DBlob> Utils::CompileShader(
 	return byteCode;
 }
 
-void Utils::CreateDefaultHeapBuffer(
+void CreateDefaultHeapBuffer(
 	ID3D12GraphicsCommandList* commandList,
 	const void* data,
 	UINT64 bufferSize,
@@ -161,7 +164,7 @@ void Utils::CreateDefaultHeapBuffer(
 	}
 }
 
-void Utils::CreateCBResources(
+void CreateCBResources(
 	// CB size is required to be 256-byte aligned.
 	UINT64 bufferSize,
 	void** data,
@@ -189,7 +192,7 @@ void Utils::CreateCBResources(
 			data));
 }
 
-void Utils::CreateRS(
+void CreateRS(
 	CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC desc,
 	ComPtr<ID3D12RootSignature>& rootSignature)
 {
@@ -217,7 +220,7 @@ void Utils::CreateRS(
 
 // based on
 // https://fgiesen.wordpress.com/2012/08/31/frustum-planes-from-the-projection-matrix/
-void Utils::GetFrustumPlanes(XMMATRIX m, Frustum& f)
+void GetFrustumPlanes(XMMATRIX m, Frustum& f)
 {
 	XMMATRIX M = XMMatrixTranspose(m);
 	XMVECTOR r1 = M.r[0];
@@ -234,14 +237,14 @@ void Utils::GetFrustumPlanes(XMMATRIX m, Frustum& f)
 	XMStoreFloat4(&f.f, XMPlaneNormalize(XMVectorAdd(r4, -r3)));
 }
 
-UINT Utils::MipsCount(UINT width, UINT height)
+UINT MipsCount(UINT width, UINT height)
 {
 	return
 		static_cast<UINT>(floorf(log2f(static_cast<float>(
 			max(width, height))))) + 1;
 }
 
-void Utils::GenerateHiZ(
+void GenerateHiZ(
 	ID3D12Resource* resource,
 	ID3D12GraphicsCommandList* commandList,
 	ID3D12RootSignature* HiZRS,
@@ -257,7 +260,7 @@ void Utils::GenerateHiZ(
 	commandList->SetPipelineState(HiZPSO);
 
 	CD3DX12_RESOURCE_BARRIER barriers[2] = {};
-	UINT mipsCount = Utils::MipsCount(inputWidth, inputHeight);
+	UINT mipsCount = MipsCount(inputWidth, inputHeight);
 	UINT outputWidth;
 	UINT outputHeight;
 	for (UINT mip = 1; mip < mipsCount; mip++)
@@ -276,10 +279,10 @@ void Utils::GenerateHiZ(
 		{
 			outputWidth,
 			outputHeight,
-			Utils::AsUINT(1.0f / static_cast<float>(outputWidth)),
-			Utils::AsUINT(1.0f / static_cast<float>(outputHeight)),
-			Utils::AsUINT(NPOTX),
-			Utils::AsUINT(NPOTY)
+			AsUINT(1.0f / static_cast<float>(outputWidth)),
+			AsUINT(1.0f / static_cast<float>(outputHeight)),
+			AsUINT(NPOTX),
+			AsUINT(NPOTY)
 		};
 
 		inputWidth = outputWidth;
@@ -305,8 +308,8 @@ void Utils::GenerateHiZ(
 			Descriptors::SV.GetGPUHandle(startUAV + mip));
 
 		commandList->Dispatch(
-			Utils::DispatchSize(Settings::HiZThreadsX, outputWidth),
-			Utils::DispatchSize(Settings::HiZThreadsY, outputHeight),
+			DispatchSize(Settings::HiZThreadsX, outputWidth),
+			DispatchSize(Settings::HiZThreadsY, outputHeight),
 			1);
 
 		barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(
@@ -318,4 +321,65 @@ void Utils::GenerateHiZ(
 	}
 
 	PIXEndEvent(commandList);
+}
+
+void GPUBuffer::Initialize(
+	ID3D12GraphicsCommandList* commandList,
+	const void* data,
+	UINT elementsCount,
+	UINT strideInBytes,
+	D3D12_RESOURCE_STATES endState,
+	UINT SRVIndex,
+	LPCWSTR name)
+{
+	if (endState == D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER)
+	{
+		_isVB = true;
+	}
+
+	if (endState == D3D12_RESOURCE_STATE_INDEX_BUFFER)
+	{
+		_isIB = true;
+	}
+
+	UINT64 bufferSize = elementsCount * strideInBytes;
+	Utils::CreateDefaultHeapBuffer(
+		commandList,
+		data,
+		bufferSize,
+		_buffer,
+		_bufferUpload,
+		endState);
+	SetName(_buffer.Get(), name);
+
+	if (_isVB)
+	{
+		_VBView.BufferLocation = _buffer->GetGPUVirtualAddress();
+		_VBView.StrideInBytes = strideInBytes;
+		_VBView.SizeInBytes = bufferSize;
+	}
+
+	if (_isIB)
+	{
+		_IBView.BufferLocation = _buffer->GetGPUVirtualAddress();
+		_IBView.SizeInBytes = bufferSize;
+		_IBView.Format = DXGI_FORMAT_R32_UINT;
+	}
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
+	SRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	SRVDesc.Format = DXGI_FORMAT_UNKNOWN;
+	SRVDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+	SRVDesc.Buffer.FirstElement = 0;
+	SRVDesc.Buffer.NumElements = elementsCount;
+	SRVDesc.Buffer.StructureByteStride = strideInBytes;
+	SRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+	DX::Device->CreateShaderResourceView(
+		_buffer.Get(),
+		&SRVDesc,
+		Descriptors::SV.GetCPUHandle(SRVIndex));
+
+	_SRV = Descriptors::SV.GetGPUHandle(SRVIndex);
+}
+
 }

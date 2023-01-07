@@ -14,14 +14,16 @@ cbuffer SceneCB : register(b0)
 	float4 CascadeSplits[MaxCascadesCount / 4];
 };
 
-typedef OpaqueVertex Vertex;
+StructuredBuffer<VertexPosition> Positions : register(t0);
+StructuredBuffer<VertexNormal> Normals : register(t1);
+StructuredBuffer<VertexColor> Colors : register(t2);
+StructuredBuffer<VertexUV> UVs : register(t3);
 
-StructuredBuffer<Vertex> Vertices : register(t0);
-StructuredBuffer<uint> Indices : register(t1);
-StructuredBuffer<Instance> Instances : register(t2);
-StructuredBuffer<BigTriangle> BigTriangles : register(t3);
-Texture2D Depth : register(t4);
-Texture2DArray ShadowMap : register(t5);
+StructuredBuffer<uint> Indices : register(t8);
+StructuredBuffer<Instance> Instances : register(t9);
+StructuredBuffer<BigTriangle> BigTriangles : register(t10);
+Texture2D Depth : register(t11);
+Texture2DArray ShadowMap : register(t12);
 
 SamplerState PointClampSampler : register(s0);
 
@@ -32,9 +34,18 @@ groupshared float2 MaxP;
 groupshared float2 P0SS;
 groupshared float2 P1SS;
 groupshared float2 P2SS;
-groupshared Vertex V0;
-groupshared Vertex V1;
-groupshared Vertex V2;
+groupshared float3 V0P;
+groupshared float3 V1P;
+groupshared float3 V2P;
+groupshared float3 V0N;
+groupshared float3 V1N;
+groupshared float3 V2N;
+groupshared float3 V0C;
+groupshared float3 V1C;
+groupshared float3 V2C;
+groupshared float2 V0UV;
+groupshared float2 V1UV;
+groupshared float2 V2UV;
 groupshared float Z0NDC;
 groupshared float Z1NDC;
 groupshared float Z2NDC;
@@ -68,16 +79,22 @@ void main(
 
 		// no tests checks for this triangle, since it had passed them already
 
-		Vertex v0, v1, v2;
-		GetTriangleVertices(
+		uint v0Idx, v1Idx, v2Idx;
+		GetTriangleIndices(
 			t.triangleIndex,
+			v0Idx,
+			v1Idx,
+			v2Idx);
+
+		GetTriangleVertexPositions(
+			v0Idx, v1Idx, v2Idx,
 			t.baseVertexLocation,
-			v0, v1, v2);
+			V0P, V1P, V2P);
 
 		float4 p0CS, p1CS, p2CS;
 		GetCSPositions(
 			t.instanceIndex,
-			v0.position, v1.position, v2.position,
+			V0P, V1P, V2P,
 			p0CS, p1CS, p2CS);
 
 		float invW0 = 1.0 / p0CS.w;
@@ -107,15 +124,24 @@ void main(
 		MinP = SnapMinBoundToPixelCenter(minP.xy);
 		MaxP = maxP.xy;
 
+		GetTriangleVertexNormals(
+			v0Idx, v1Idx, v2Idx,
+			t.baseVertexLocation,
+			V0N, V1N, V2N);
+		GetTriangleVertexColors(
+			v0Idx, v1Idx, v2Idx,
+			t.baseVertexLocation,
+			V0C, V1C, V2C);
+		GetTriangleVertexUVs(
+			v0Idx, v1Idx, v2Idx,
+			t.baseVertexLocation,
+			V0UV, V1UV, V2UV);
 		P0SS = p0SS;
 		P1SS = p1SS;
 		P2SS = p2SS;
 		Z0NDC = z0NDC;
 		Z1NDC = z1NDC;
 		Z2NDC = z2NDC;
-		V0 = v0;
-		V1 = v1;
-		V2 = v2;
 		InvW0 = invW0;
 		InvW1 = invW1;
 		InvW2 = invW2;
@@ -180,18 +206,20 @@ void main(
 						weight2 * InvW2);
 
 					float3 N = denom * (
-						weight0 * V0.normal * InvW0 +
-						weight1 * V1.normal * InvW1 +
-						weight2 * V2.normal * InvW2);
+						weight0 * V0N * InvW0 +
+						weight1 * V1N * InvW1 +
+						weight2 * V2N * InvW2);
 					N = normalize(N);
+
 					float3 color = denom * (
-						weight0 * V0.color * InvW0 +
-						weight1 * V1.color * InvW1 +
-						weight2 * V2.color * InvW2);
+						weight0 * V0C * InvW0 +
+						weight1 * V1C * InvW1 +
+						weight2 * V2C * InvW2);
+
 					float3 positionWS = denom * (
-						weight0 * V0.position * InvW0 +
-						weight1 * V1.position * InvW1 +
-						weight2 * V2.position * InvW2);
+						weight0 * V0P * InvW0 +
+						weight1 * V1P * InvW1 +
+						weight2 * V2P * InvW2);
 
 					float NdotL = saturate(dot(SunDirection, N));
 					float viewDepth = denom;

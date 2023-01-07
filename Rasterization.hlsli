@@ -21,21 +21,68 @@ void EdgeFunction(
 	dxdy = e0;
 }
 
-void GetTriangleVertices(
+void GetTriangleIndices(
 	in uint startIndexLocation,
-	in uint baseVertexLocation,
-	out Vertex v0,
-	out Vertex v1,
-	out Vertex v2)
+	out uint v0Idx,
+	out uint v1Idx,
+	out uint v2Idx)
 {
-	uint v0Idx = Indices[startIndexLocation + 0];
-	uint v1Idx = Indices[startIndexLocation + 1];
-	uint v2Idx = Indices[startIndexLocation + 2];
-
-	v0 = Vertices[baseVertexLocation + v0Idx];
-	v1 = Vertices[baseVertexLocation + v1Idx];
-	v2 = Vertices[baseVertexLocation + v2Idx];
+	v0Idx = Indices[startIndexLocation + 0];
+	v1Idx = Indices[startIndexLocation + 1];
+	v2Idx = Indices[startIndexLocation + 2];
 }
+
+void GetTriangleVertexPositions(
+	in uint v0Idx, in uint v1Idx, in uint v2Idx,
+	in uint baseVertexLocation,
+	out float3 v0P,
+	out float3 v1P,
+	out float3 v2P)
+{
+	v0P = Positions[baseVertexLocation + v0Idx].position;
+	v1P = Positions[baseVertexLocation + v1Idx].position;
+	v2P = Positions[baseVertexLocation + v2Idx].position;
+}
+
+#ifdef OPAQUE
+
+void GetTriangleVertexNormals(
+	in uint v0Idx, in uint v1Idx, in uint v2Idx,
+	in uint baseVertexLocation,
+	out float3 v0N,
+	out float3 v1N,
+	out float3 v2N)
+{
+	v0N = Normals[baseVertexLocation + v0Idx].normal;
+	v1N = Normals[baseVertexLocation + v1Idx].normal;
+	v2N = Normals[baseVertexLocation + v2Idx].normal;
+}
+
+void GetTriangleVertexColors(
+	in uint v0Idx, in uint v1Idx, in uint v2Idx,
+	in uint baseVertexLocation,
+	out float3 v0C,
+	out float3 v1C,
+	out float3 v2C)
+{
+	v0C = Colors[baseVertexLocation + v0Idx].color;
+	v1C = Colors[baseVertexLocation + v1Idx].color;
+	v2C = Colors[baseVertexLocation + v2Idx].color;
+}
+
+void GetTriangleVertexUVs(
+	in uint v0Idx, in uint v1Idx, in uint v2Idx,
+	in uint baseVertexLocation,
+	out float2 v0UV,
+	out float2 v1UV,
+	out float2 v2UV)
+{
+	v0UV = UVs[baseVertexLocation + v0Idx].uv;
+	v1UV = UVs[baseVertexLocation + v1Idx].uv;
+	v2UV = UVs[baseVertexLocation + v2Idx].uv;
+}
+
+#endif // OPAQUE
 
 void GetCSPositions(
 	in uint instanceIndex,

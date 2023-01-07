@@ -26,13 +26,15 @@ cbuffer ConstantBuffer : register(b1)
 	uint StartInstanceLocation;
 }
 
-typedef OpaqueVertex Vertex;
+StructuredBuffer<VertexPosition> Positions : register(t0);
+StructuredBuffer<VertexNormal> Normals : register(t1);
+StructuredBuffer<VertexColor> Colors : register(t2);
+StructuredBuffer<VertexUV> UVs : register(t3);
 
-StructuredBuffer<Vertex> Vertices : register(t0);
-StructuredBuffer<uint> Indices : register(t1);
-StructuredBuffer<Instance> Instances : register(t2);
-Texture2D Depth : register(t3);
-Texture2DArray ShadowMap : register(t4);
+StructuredBuffer<uint> Indices : register(t8);
+StructuredBuffer<Instance> Instances : register(t9);
+Texture2D Depth : register(t10);
+Texture2DArray ShadowMap : register(t11);
 
 SamplerState PointClampSampler : register(s0);
 SamplerState DepthSampler : register(s1);
@@ -60,18 +62,25 @@ void main(
 	// one more triangle attempted to be rendered
 	InterlockedAdd(Statistics[0], 1);
 
-	Vertex v0, v1, v2;
-	GetTriangleVertices(
+	uint v0Idx, v1Idx, v2Idx;
+	GetTriangleIndices(
 		StartIndexLocation + dispatchThreadID.x * 3,
+		v0Idx,
+		v1Idx,
+		v2Idx);
+
+	float3 v0P, v1P, v2P;
+	GetTriangleVertexPositions(
+		v0Idx, v1Idx, v2Idx,
 		BaseVertexLocation,
-		v0, v1, v2);
+		v0P, v1P, v2P);
 
 	float4 p0CS, p1CS, p2CS;
 	uint instanceID = groupID.y;
 	uint instanceIndex = StartInstanceLocation + instanceID;
 	GetCSPositions(
 		instanceIndex,
-		v0.position, v1.position, v2.position,
+		v0P, v1P, v2P,
 		p0CS, p1CS, p2CS);
 
 	// crude "clipping" of polygons behind the camera
@@ -117,8 +126,7 @@ void main(
 	// frustum culling
 	[branch]
 	if (minP.x >= OutputRes.x || maxP.x < 0.0
-		|| maxP.y < 0.0 || minP.y >= OutputRes.y
-		/*|| minP.z > 1.0 || maxP.z < 0.0*/)
+		|| maxP.y < 0.0 || minP.y >= OutputRes.y)
 	{
 		return;
 	}
@@ -219,19 +227,31 @@ void main(
 						weight1 * invW1 +
 						weight2 * invW2);
 
+					float3 v0N, v1N, v2N;
+					GetTriangleVertexNormals(
+						v0Idx, v1Idx, v2Idx,
+						BaseVertexLocation,
+						v0N, v1N, v2N);
 					float3 N = denom * (
-						weight0 * v0.normal * invW0 +
-						weight1 * v1.normal * invW1 +
-						weight2 * v2.normal * invW2);
+						weight0 * v0N * invW0 +
+						weight1 * v1N * invW1 +
+						weight2 * v2N * invW2);
 					N = normalize(N);
+
+					float3 v0C, v1C, v2C;
+					GetTriangleVertexColors(
+						v0Idx, v1Idx, v2Idx,
+						BaseVertexLocation,
+						v0C, v1C, v2C);
 					float3 color = denom * (
-						weight0 * v0.color * invW0 +
-						weight1 * v1.color * invW1 +
-						weight2 * v2.color * invW2);
+						weight0 * v0C * invW0 +
+						weight1 * v1C * invW1 +
+						weight2 * v2C * invW2);
+
 					float3 positionWS = denom * (
-						weight0 * v0.position * invW0 +
-						weight1 * v1.position * invW1 +
-						weight2 * v2.position * invW2);
+						weight0 * v0P * invW0 +
+						weight1 * v1P * invW1 +
+						weight2 * v2P * invW2);
 
 					float NdotL = saturate(dot(SunDirection, N));
 					float viewDepth = denom;

@@ -23,22 +23,28 @@ static const uint HiZThreadsZ = 1;
 
 // https://developer.nvidia.com/content/understanding-structured-buffer-performance
 
-struct DepthVertex
+struct VertexPosition
 {
 	float3 position;
-	float pad0;
+	float pad;
 };
 
-struct OpaqueVertex
+struct VertexNormal
 {
-	float3 position;
-	float pad0;
 	float3 normal;
-	float pad1;
+	float pad;
+};
+
+struct VertexColor
+{
 	float3 color;
-	float pad2;
+	float pad;
+};
+
+struct VertexUV
+{
 	float2 uv;
-	float2 pad3;
+	float2 pad;
 };
 
 struct Frustum

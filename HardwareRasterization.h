@@ -18,9 +18,6 @@ public:
 		UINT width,
 		UINT height);
 	void Draw(
-		const D3D12_VERTEX_BUFFER_VIEW& depthVertexBufferView,
-		const D3D12_VERTEX_BUFFER_VIEW& vertexBufferView,
-		const D3D12_INDEX_BUFFER_VIEW& indexBufferView,
 		ID3D12Resource* renderTarget,
 		CD3DX12_CPU_DESCRIPTOR_HANDLE RTVHandle);
 	void Update();
@@ -47,13 +44,10 @@ private:
 	void _createOpaquePassPSO();
 	void _createMDIStuff();
 
-	void _beginFrame(
-		const D3D12_INDEX_BUFFER_VIEW& indexBufferView);
-	void _drawDepth(
-		const D3D12_VERTEX_BUFFER_VIEW& depthVertexBufferView);
+	void _beginFrame();
+	void _drawDepth();
 	void _drawShadows();
 	void _drawOpaque(
-		const D3D12_VERTEX_BUFFER_VIEW& vertexBufferView,
 		ID3D12Resource* renderTarget,
 		CD3DX12_CPU_DESCRIPTOR_HANDLE RTVHandle);
 	void _endFrame();

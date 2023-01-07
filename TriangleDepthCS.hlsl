@@ -19,11 +19,10 @@ cbuffer ConstantBuffer : register(b1)
 	uint StartInstanceLocation;
 }
 
-typedef DepthVertex Vertex;
+StructuredBuffer<VertexPosition> Positions : register(t0);
 
-StructuredBuffer<Vertex> Vertices : register(t0);
-StructuredBuffer<uint> Indices : register(t1);
-StructuredBuffer<Instance> Instances : register(t2);
+StructuredBuffer<uint> Indices : register(t8);
+StructuredBuffer<Instance> Instances : register(t9);
 
 RWTexture2D<uint> Depth : register(u0);
 AppendStructuredBuffer<BigTriangle> BigTriangles : register(u1);
@@ -48,18 +47,25 @@ void main(
 	// one more triangle attempted to be rendered
 	InterlockedAdd(Statistics[0], 1);
 
-	Vertex v0, v1, v2;
-	GetTriangleVertices(
+	uint v0Idx, v1Idx, v2Idx;
+	GetTriangleIndices(
 		StartIndexLocation + dispatchThreadID.x * 3,
+		v0Idx,
+		v1Idx,
+		v2Idx);
+
+	float3 v0P, v1P, v2P;
+	GetTriangleVertexPositions(
+		v0Idx, v1Idx, v2Idx,
 		BaseVertexLocation,
-		v0, v1, v2);
+		v0P, v1P, v2P);
 
 	float4 p0CS, p1CS, p2CS;
 	uint instanceID = groupID.y;
 	uint instanceIndex = StartInstanceLocation + instanceID;
 	GetCSPositions(
 		instanceIndex,
-		v0.position, v1.position, v2.position,
+		v0P, v1P, v2P,
 		p0CS, p1CS, p2CS);
 
 	// crude "clipping" of polygons behind the camera
@@ -105,8 +111,7 @@ void main(
 	// frustum culling
 	[branch]
 	if (minP.x >= OutputRes.x || maxP.x < 0.0
-		|| maxP.y < 0.0 || minP.y >= OutputRes.y
-		/*|| minP.z > 1.0 || maxP.z < 0.0*/)
+		|| maxP.y < 0.0 || minP.y >= OutputRes.y)
 	{
 		return;
 	}

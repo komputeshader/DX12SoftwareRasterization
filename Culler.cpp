@@ -67,7 +67,7 @@ void Culler::Update()
 	Camera& camera = Scene::CurrentScene->camera;
 	CullingCB cullingData = {};
 	cullingData.totalInstancesCount = Scene::CurrentScene->instancesCPU.size();
-	cullingData.totalMeshesCount = Scene::CurrentScene->mutualMeshMeta.size();
+	cullingData.totalMeshesCount = Scene::CurrentScene->meshesMetaCPU.size();
 	cullingData.cascadesCount = Settings::CascadesCount;
 	cullingData.camera = camera.GetFrustum();
 
@@ -144,7 +144,7 @@ void Culler::Cull(
 	commandList->Dispatch(
 		Utils::DispatchSize(
 			Settings::CullingThreadsX,
-			Scene::CurrentScene->mutualMeshMeta.size()),
+			Scene::CurrentScene->meshesMetaCPU.size()),
 		1,
 		1);
 
@@ -154,9 +154,9 @@ void Culler::Cull(
 	commandList->SetComputeRootConstantBufferView(
 		0, cbAdress);
 	commandList->SetComputeRootDescriptorTable(
-		1, Scene::CurrentScene->meshMetaSRV);
+		1, Scene::CurrentScene->meshesMetaGPU.GetSRV());
 	commandList->SetComputeRootDescriptorTable(
-		2, Scene::CurrentScene->instancesSRV);
+		2, Scene::CurrentScene->instancesGPU.GetSRV());
 	commandList->SetComputeRootDescriptorTable(
 		3,
 		Descriptors::SV.GetGPUHandle(
@@ -199,7 +199,7 @@ void Culler::Cull(
 	commandList->SetComputeRootConstantBufferView(
 		0, cbAdress);
 	commandList->SetComputeRootDescriptorTable(
-		1, Scene::CurrentScene->meshMetaSRV);
+		1, Scene::CurrentScene->meshesMetaGPU.GetSRV());
 	commandList->SetComputeRootDescriptorTable(
 		2, Descriptors::SV.GetGPUHandle(CullingCountersSRV));
 	if (Settings::SWREnabled)
@@ -221,7 +221,7 @@ void Culler::Cull(
 	commandList->Dispatch(
 		Utils::DispatchSize(
 			Settings::CullingThreadsX,
-			Scene::CurrentScene->mutualMeshMeta.size()),
+			Scene::CurrentScene->meshesMetaCPU.size()),
 		1,
 		1);
 

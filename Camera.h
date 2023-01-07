@@ -108,9 +108,9 @@ private:
 
 	void _updateFrustumPlanes();
 
-	DirectX::XMFLOAT4X4 _view = Utils::Identity4x4();
-	DirectX::XMFLOAT4X4 _projection = Utils::Identity4x4();
-	DirectX::XMFLOAT4X4 _viewProjection = Utils::Identity4x4();
+	DirectX::XMFLOAT4X4 _view = Identity4x4;
+	DirectX::XMFLOAT4X4 _projection = Identity4x4;
+	DirectX::XMFLOAT4X4 _viewProjection = Identity4x4;
 
 	Frustum _frustum;
 

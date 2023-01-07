@@ -24,11 +24,14 @@ public:
 	// to light
 	DirectX::XMFLOAT3 lightDirection;
 
-	std::vector<DepthVertex> mutualDepthVertices;
-	std::vector<Vertex> mutualVertices;
-	std::vector<UINT> mutualIndices;
+	// mutual for all geometry
+	std::vector<VertexPosition> positionsCPU;
+	std::vector<VertexNormal> normalsCPU;
+	std::vector<VertexColor> colorsCPU;
+	std::vector<VertexUV> texcoordsCPU;
+	std::vector<UINT> indicesCPU;
 	// mesh is a smallest entity with it's own bounding volume
-	std::vector<MeshMeta> mutualMeshMeta;
+	std::vector<MeshMeta> meshesMetaCPU;
 	// unique objects in the scene
 	std::vector<Instance> instancesCPU;
 
@@ -43,29 +46,15 @@ public:
 
 	// GPU Resources
 
-	// we need only positions as vertex data for depth passes
-	Microsoft::WRL::ComPtr<ID3D12Resource> depthVertexBuffer;
-	Microsoft::WRL::ComPtr<ID3D12Resource> depthVertexBufferUpload;
-	D3D12_VERTEX_BUFFER_VIEW depthVertexBufferView;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE depthVerticesSRV;
+	// de-interleaved vertex attributes
+	Utils::GPUBuffer positionsGPU;
+	Utils::GPUBuffer normalsGPU;
+	Utils::GPUBuffer colorsGPU;
+	Utils::GPUBuffer texcoordsGPU;
 
-	Microsoft::WRL::ComPtr<ID3D12Resource> vertexBuffer;
-	Microsoft::WRL::ComPtr<ID3D12Resource> vertexBufferUpload;
-	D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE verticesSRV;
-
-	Microsoft::WRL::ComPtr<ID3D12Resource> indexBuffer;
-	Microsoft::WRL::ComPtr<ID3D12Resource> indexBufferUpload;
-	D3D12_INDEX_BUFFER_VIEW indexBufferView;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE indicesSRV;
-
-	Microsoft::WRL::ComPtr<ID3D12Resource> meshMetaBuffer;
-	Microsoft::WRL::ComPtr<ID3D12Resource> meshMetaBufferUpload;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE meshMetaSRV;
-
-	Microsoft::WRL::ComPtr<ID3D12Resource> instancesGPU;
-	Microsoft::WRL::ComPtr<ID3D12Resource> instancesGPUUpload;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE instancesSRV;
+	Utils::GPUBuffer indicesGPU;
+	Utils::GPUBuffer meshesMetaGPU;
+	Utils::GPUBuffer instancesGPU;
 
 private:
 

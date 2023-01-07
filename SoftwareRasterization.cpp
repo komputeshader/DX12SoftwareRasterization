@@ -432,14 +432,14 @@ void SoftwareRasterization::_drawDepth()
 		_depthSceneCB->GetGPUVirtualAddress() +
 		DX::FrameIndex * _depthSceneCBFrameSize);
 	DX::CommandList->SetComputeRootDescriptorTable(
-		2, Scene::CurrentScene->depthVerticesSRV);
+		2, Scene::CurrentScene->positionsGPU.GetSRV());
 	DX::CommandList->SetComputeRootDescriptorTable(
-		3, Scene::CurrentScene->indicesSRV);
+		3, Scene::CurrentScene->indicesGPU.GetSRV());
 	DX::CommandList->SetComputeRootDescriptorTable(
 		4,
 		Settings::CullingEnabled
 		? Descriptors::SV.GetGPUHandle(VisibleInstancesSRV + DX::FrameIndex * PerFrameDescriptorsCount)
-		: Scene::CurrentScene->instancesSRV);
+		: Scene::CurrentScene->instancesGPU.GetSRV());
 	DX::CommandList->SetComputeRootDescriptorTable(
 		5, Descriptors::SV.GetGPUHandle(SWRDepthMipsUAV));
 	DX::CommandList->SetComputeRootDescriptorTable(
@@ -451,7 +451,7 @@ void SoftwareRasterization::_drawDepth()
 	{
 		DX::CommandList->ExecuteIndirect(
 			_triangleDepthCS.Get(),
-			Scene::CurrentScene->mutualMeshMeta.size(),
+			Scene::CurrentScene->meshesMetaCPU.size(),
 			_culledCommands[DX::FrameIndex][0].Get(),
 			0,
 			_culledCommands[DX::FrameIndex][0].Get(),
@@ -464,7 +464,7 @@ void SoftwareRasterization::_drawDepth()
 			for (UINT mesh = 0; mesh < prefab.meshesCount; mesh++)
 			{
 				const auto& currentMesh =
-					Scene::CurrentScene->mutualMeshMeta[prefab.meshesOffset + mesh];
+					Scene::CurrentScene->meshesMetaCPU[prefab.meshesOffset + mesh];
 
 				_drawIndexedInstanced(
 					currentMesh.indexCountPerInstance,
@@ -505,14 +505,15 @@ void SoftwareRasterization::_drawDepth()
 		_depthSceneCB->GetGPUVirtualAddress() +
 		DX::FrameIndex * _depthSceneCBFrameSize);
 	DX::CommandList->SetComputeRootDescriptorTable(
-		1, Scene::CurrentScene->depthVerticesSRV);
+		1, Scene::CurrentScene->positionsGPU.GetSRV());
 	DX::CommandList->SetComputeRootDescriptorTable(
-		2, Scene::CurrentScene->indicesSRV);
+		2, Scene::CurrentScene->indicesGPU.GetSRV());
 	DX::CommandList->SetComputeRootDescriptorTable(
 		3,
 		Settings::CullingEnabled
-		? Descriptors::SV.GetGPUHandle(VisibleInstancesSRV + DX::FrameIndex * PerFrameDescriptorsCount)
-		: Scene::CurrentScene->instancesSRV);
+		? Descriptors::SV.GetGPUHandle(VisibleInstancesSRV +
+			DX::FrameIndex * PerFrameDescriptorsCount)
+		: Scene::CurrentScene->instancesGPU.GetSRV());
 	DX::CommandList->SetComputeRootDescriptorTable(
 		4, Descriptors::SV.GetGPUHandle(BigTrianglesSRV));
 	DX::CommandList->SetComputeRootDescriptorTable(
@@ -587,15 +588,15 @@ void SoftwareRasterization::_drawShadows()
 			DX::FrameIndex * _depthSceneCBFrameSize +
 			(1 + cascade) * sizeof(SWRDepthSceneCB));
 		DX::CommandList->SetComputeRootDescriptorTable(
-			2, Scene::CurrentScene->depthVerticesSRV);
+			2, Scene::CurrentScene->positionsGPU.GetSRV());
 		DX::CommandList->SetComputeRootDescriptorTable(
-			3, Scene::CurrentScene->indicesSRV);
+			3, Scene::CurrentScene->indicesGPU.GetSRV());
 		DX::CommandList->SetComputeRootDescriptorTable(
 			4,
 			Settings::CullingEnabled
 			? Descriptors::SV.GetGPUHandle(VisibleInstancesSRV + 1 + cascade +
 				DX::FrameIndex * PerFrameDescriptorsCount)
-			: Scene::CurrentScene->instancesSRV);
+			: Scene::CurrentScene->instancesGPU.GetSRV());
 		DX::CommandList->SetComputeRootDescriptorTable(
 			5, Descriptors::SV.GetGPUHandle(
 				CascadeMipsUAV + cascade * Settings::ShadowMapMipsCount));
@@ -608,7 +609,7 @@ void SoftwareRasterization::_drawShadows()
 		{
 			DX::CommandList->ExecuteIndirect(
 				_triangleDepthCS.Get(),
-				Scene::CurrentScene->mutualMeshMeta.size(),
+				Scene::CurrentScene->meshesMetaCPU.size(),
 				_culledCommands[DX::FrameIndex][1 + cascade].Get(),
 				0,
 				_culledCommands[DX::FrameIndex][1 + cascade].Get(),
@@ -621,7 +622,7 @@ void SoftwareRasterization::_drawShadows()
 				for (UINT mesh = 0; mesh < prefab.meshesCount; mesh++)
 				{
 					const auto& currentMesh =
-						Scene::CurrentScene->mutualMeshMeta[prefab.meshesOffset + mesh];
+						Scene::CurrentScene->meshesMetaCPU[prefab.meshesOffset + mesh];
 
 					_drawIndexedInstanced(
 						currentMesh.indexCountPerInstance,
@@ -663,15 +664,15 @@ void SoftwareRasterization::_drawShadows()
 			DX::FrameIndex * _depthSceneCBFrameSize +
 			(1 + cascade) * sizeof(SWRDepthSceneCB));
 		DX::CommandList->SetComputeRootDescriptorTable(
-			1, Scene::CurrentScene->depthVerticesSRV);
+			1, Scene::CurrentScene->positionsGPU.GetSRV());
 		DX::CommandList->SetComputeRootDescriptorTable(
-			2, Scene::CurrentScene->indicesSRV);
+			2, Scene::CurrentScene->indicesGPU.GetSRV());
 		DX::CommandList->SetComputeRootDescriptorTable(
 			3,
 			Settings::CullingEnabled
 			? Descriptors::SV.GetGPUHandle(VisibleInstancesSRV + 1 + cascade +
 				DX::FrameIndex * PerFrameDescriptorsCount)
-			: Scene::CurrentScene->instancesSRV);
+			: Scene::CurrentScene->instancesGPU.GetSRV());
 		DX::CommandList->SetComputeRootDescriptorTable(
 			4, Descriptors::SV.GetGPUHandle(BigTrianglesSRV));
 		DX::CommandList->SetComputeRootDescriptorTable(
@@ -734,30 +735,36 @@ void SoftwareRasterization::_drawOpaque()
 		_sceneCB->GetGPUVirtualAddress() +
 		DX::FrameIndex * sizeof(SWRSceneCB));
 	DX::CommandList->SetComputeRootDescriptorTable(
-		2, Scene::CurrentScene->verticesSRV);
+		2, Scene::CurrentScene->positionsGPU.GetSRV());
 	DX::CommandList->SetComputeRootDescriptorTable(
-		3, Scene::CurrentScene->indicesSRV);
+		3, Scene::CurrentScene->normalsGPU.GetSRV());
 	DX::CommandList->SetComputeRootDescriptorTable(
-		4,
+		4, Scene::CurrentScene->colorsGPU.GetSRV());
+	DX::CommandList->SetComputeRootDescriptorTable(
+		5, Scene::CurrentScene->texcoordsGPU.GetSRV());
+	DX::CommandList->SetComputeRootDescriptorTable(
+		6, Scene::CurrentScene->indicesGPU.GetSRV());
+	DX::CommandList->SetComputeRootDescriptorTable(
+		7,
 		Settings::CullingEnabled
 		? Descriptors::SV.GetGPUHandle(VisibleInstancesSRV + DX::FrameIndex * PerFrameDescriptorsCount)
-		: Scene::CurrentScene->instancesSRV);
+		: Scene::CurrentScene->instancesGPU.GetSRV());
 	DX::CommandList->SetComputeRootDescriptorTable(
-		5, Descriptors::SV.GetGPUHandle(SWRDepthSRV));
+		8, Descriptors::SV.GetGPUHandle(SWRDepthSRV));
 	DX::CommandList->SetComputeRootDescriptorTable(
-		6, Descriptors::SV.GetGPUHandle(SWRShadowMapSRV));
+		9, Descriptors::SV.GetGPUHandle(SWRShadowMapSRV));
 	DX::CommandList->SetComputeRootDescriptorTable(
-		7, Descriptors::SV.GetGPUHandle(SWRRenderTargetUAV));
+		10, Descriptors::SV.GetGPUHandle(SWRRenderTargetUAV));
 	DX::CommandList->SetComputeRootDescriptorTable(
-		8, Descriptors::SV.GetGPUHandle(BigTrianglesUAV));
+		11, Descriptors::SV.GetGPUHandle(BigTrianglesUAV));
 	DX::CommandList->SetComputeRootDescriptorTable(
-		9, Descriptors::SV.GetGPUHandle(SWRStatsUAV));
+		12, Descriptors::SV.GetGPUHandle(SWRStatsUAV));
 
 	if (Settings::CullingEnabled)
 	{
 		DX::CommandList->ExecuteIndirect(
 			_triangleOpaqueCS.Get(),
-			Scene::CurrentScene->mutualMeshMeta.size(),
+			Scene::CurrentScene->meshesMetaCPU.size(),
 			_culledCommands[DX::FrameIndex][0].Get(),
 			0,
 			_culledCommands[DX::FrameIndex][0].Get(),
@@ -770,7 +777,7 @@ void SoftwareRasterization::_drawOpaque()
 			for (UINT mesh = 0; mesh < prefab.meshesCount; mesh++)
 			{
 				const auto& currentMesh =
-					Scene::CurrentScene->mutualMeshMeta[prefab.meshesOffset + mesh];
+					Scene::CurrentScene->meshesMetaCPU[prefab.meshesOffset + mesh];
 
 				_drawIndexedInstanced(
 					currentMesh.indexCountPerInstance,
@@ -810,22 +817,28 @@ void SoftwareRasterization::_drawOpaque()
 		SceneCB,
 		_sceneCB->GetGPUVirtualAddress() + DX::FrameIndex * sizeof(SWRSceneCB));
 	DX::CommandList->SetComputeRootDescriptorTable(
-		1, Scene::CurrentScene->verticesSRV);
+		1, Scene::CurrentScene->positionsGPU.GetSRV());
 	DX::CommandList->SetComputeRootDescriptorTable(
-		2, Scene::CurrentScene->indicesSRV);
+		2, Scene::CurrentScene->normalsGPU.GetSRV());
 	DX::CommandList->SetComputeRootDescriptorTable(
-		3,
+		3, Scene::CurrentScene->colorsGPU.GetSRV());
+	DX::CommandList->SetComputeRootDescriptorTable(
+		4, Scene::CurrentScene->texcoordsGPU.GetSRV());
+	DX::CommandList->SetComputeRootDescriptorTable(
+		5, Scene::CurrentScene->indicesGPU.GetSRV());
+	DX::CommandList->SetComputeRootDescriptorTable(
+		6,
 		Settings::CullingEnabled
 		? Descriptors::SV.GetGPUHandle(VisibleInstancesSRV + DX::FrameIndex * PerFrameDescriptorsCount)
-		: Scene::CurrentScene->instancesSRV);
+		: Scene::CurrentScene->instancesGPU.GetSRV());
 	DX::CommandList->SetComputeRootDescriptorTable(
-		4, Descriptors::SV.GetGPUHandle(BigTrianglesSRV));
+		7, Descriptors::SV.GetGPUHandle(BigTrianglesSRV));
 	DX::CommandList->SetComputeRootDescriptorTable(
-		5, Descriptors::SV.GetGPUHandle(SWRDepthSRV));
+		8, Descriptors::SV.GetGPUHandle(SWRDepthSRV));
 	DX::CommandList->SetComputeRootDescriptorTable(
-		6, Descriptors::SV.GetGPUHandle(SWRShadowMapSRV));
+		9, Descriptors::SV.GetGPUHandle(SWRShadowMapSRV));
 	DX::CommandList->SetComputeRootDescriptorTable(
-		7, Descriptors::SV.GetGPUHandle(SWRRenderTargetUAV));
+		10, Descriptors::SV.GetGPUHandle(SWRRenderTargetUAV));
 
 	DX::CommandList->ExecuteIndirect(
 		_bigTrianglesCS.Get(),
@@ -1231,12 +1244,12 @@ void SoftwareRasterization::_createTriangleDepthPSO()
 	ranges[1].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
-		1);
+		8);
 	computeRootParameters[3].InitAsDescriptorTable(1, &ranges[1]);
 	ranges[2].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
-		2);
+		9);
 	computeRootParameters[4].InitAsDescriptorTable(1, &ranges[2]);
 	ranges[3].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
@@ -1294,17 +1307,17 @@ void SoftwareRasterization::_createBigTriangleDepthPSO()
 	ranges[1].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
-		1);
+		8);
 	computeRootParameters[2].InitAsDescriptorTable(1, &ranges[1]);
 	ranges[2].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
-		2);
+		9);
 	computeRootParameters[3].InitAsDescriptorTable(1, &ranges[2]);
 	ranges[3].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
-		3);
+		10);
 	computeRootParameters[4].InitAsDescriptorTable(1, &ranges[3]);
 	ranges[4].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
@@ -1341,10 +1354,10 @@ void SoftwareRasterization::_createBigTriangleDepthPSO()
 
 void SoftwareRasterization::_createTriangleOpaquePSO()
 {
-	CD3DX12_ROOT_PARAMETER1 computeRootParameters[10] = {};
+	CD3DX12_ROOT_PARAMETER1 computeRootParameters[13] = {};
 	computeRootParameters[SceneCB].InitAsConstantBufferView(0);
 	computeRootParameters[RootConstants].InitAsConstants(4, 1);
-	CD3DX12_DESCRIPTOR_RANGE1 ranges[8] = {};
+	CD3DX12_DESCRIPTOR_RANGE1 ranges[11] = {};
 	ranges[0].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
@@ -1368,23 +1381,38 @@ void SoftwareRasterization::_createTriangleOpaquePSO()
 	ranges[4].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
-		4);
+		8);
 	computeRootParameters[6].InitAsDescriptorTable(1, &ranges[4]);
 	ranges[5].Init(
+		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+		1,
+		9);
+	computeRootParameters[7].InitAsDescriptorTable(1, &ranges[5]);
+	ranges[6].Init(
+		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+		1,
+		10);
+	computeRootParameters[8].InitAsDescriptorTable(1, &ranges[6]);
+	ranges[7].Init(
+		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+		1,
+		11);
+	computeRootParameters[9].InitAsDescriptorTable(1, &ranges[7]);
+	ranges[8].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
 		1,
 		0);
-	computeRootParameters[7].InitAsDescriptorTable(1, &ranges[5]);
-	ranges[6].Init(
+	computeRootParameters[10].InitAsDescriptorTable(1, &ranges[8]);
+	ranges[9].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
 		1,
 		1);
-	computeRootParameters[8].InitAsDescriptorTable(1, &ranges[6]);
-	ranges[7].Init(
+	computeRootParameters[11].InitAsDescriptorTable(1, &ranges[9]);
+	ranges[10].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
 		1,
 		2);
-	computeRootParameters[9].InitAsDescriptorTable(1, &ranges[7]);
+	computeRootParameters[12].InitAsDescriptorTable(1, &ranges[10]);
 
 	D3D12_STATIC_SAMPLER_DESC samplers[2] = {};
 	D3D12_STATIC_SAMPLER_DESC* pointClampSampler = &samplers[0];
@@ -1439,9 +1467,9 @@ void SoftwareRasterization::_createTriangleOpaquePSO()
 
 void SoftwareRasterization::_createBigTriangleOpaquePSO()
 {
-	CD3DX12_ROOT_PARAMETER1 computeRootParameters[8] = {};
+	CD3DX12_ROOT_PARAMETER1 computeRootParameters[11] = {};
 	computeRootParameters[SceneCB].InitAsConstantBufferView(0);
-	CD3DX12_DESCRIPTOR_RANGE1 ranges[7] = {};
+	CD3DX12_DESCRIPTOR_RANGE1 ranges[10] = {};
 	ranges[0].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
@@ -1465,18 +1493,33 @@ void SoftwareRasterization::_createBigTriangleOpaquePSO()
 	ranges[4].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
-		4);
+		8);
 	computeRootParameters[5].InitAsDescriptorTable(1, &ranges[4]);
 	ranges[5].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
-		5);
+		9);
 	computeRootParameters[6].InitAsDescriptorTable(1, &ranges[5]);
 	ranges[6].Init(
+		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+		1,
+		10);
+	computeRootParameters[7].InitAsDescriptorTable(1, &ranges[6]);
+	ranges[7].Init(
+		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+		1,
+		11);
+	computeRootParameters[8].InitAsDescriptorTable(1, &ranges[7]);
+	ranges[8].Init(
+		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+		1,
+		12);
+	computeRootParameters[9].InitAsDescriptorTable(1, &ranges[8]);
+	ranges[9].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
 		1,
 		0);
-	computeRootParameters[7].InitAsDescriptorTable(1, &ranges[6]);
+	computeRootParameters[10].InitAsDescriptorTable(1, &ranges[9]);
 
 	D3D12_STATIC_SAMPLER_DESC pointClampSampler = {};
 	pointClampSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;

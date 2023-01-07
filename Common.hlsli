@@ -122,6 +122,6 @@ float3 GetCascadeColor(in float viewDepth, in float3 positionWS)
 
 	return cascadeColors[cascadeIdx];
 }
-#endif
+#endif // OPAQUE
 
 #endif // COMMON_HLSL
