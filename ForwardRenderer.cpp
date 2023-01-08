@@ -580,25 +580,25 @@ void ForwardRenderer::_GUINewFrame()
 			}
 		}
 
+		ImGui::Dummy(ImVec2(0.0f, 20.0f));
+
 		ImGui::Text(
-			"Total triangles in the scene: %u",
-			Scene::CurrentScene->totalFacesCount);
+			"Total triangles in the scene: %.3f Mil",
+			Scene::CurrentScene->totalFacesCount / 1'000'000.0f);
 
 		const auto& stats = _stats->GetStats();
 
-		float pipelineTriangles;
-		float trianglesRendered;
+		UINT pipelineTriangles;
+		UINT trianglesRendered;
 		if (Settings::SWREnabled)
 		{
-			pipelineTriangles =
-				static_cast<float>(_SWR->GetPipelineTrianglesCount());
-			trianglesRendered =
-				static_cast<float>(_SWR->GetRenderedTrianglesCount());
+			pipelineTriangles = _SWR->GetPipelineTrianglesCount();
+			trianglesRendered = _SWR->GetRenderedTrianglesCount();
 		}
 		else
 		{
-			pipelineTriangles = static_cast<float>(stats.IAPrimitives);
-			trianglesRendered = static_cast<float>(stats.CPrimitives);
+			pipelineTriangles = stats.IAPrimitives;
+			trianglesRendered = stats.CPrimitives;
 		}
 
 		ImGui::Text(
@@ -609,25 +609,35 @@ void ForwardRenderer::_GUINewFrame()
 			"Triangles Rendered: %.3f Mil",
 			trianglesRendered / 1'000'000.0f);
 
+		ImGui::Dummy(ImVec2(0.0f, 20.0f));
+
 		ImGui::Text(
 			"PS Invocations: %.3f Mil",
-			static_cast<float>(stats.PSInvocations) / 1'000'000.0f);
+			stats.PSInvocations / 1'000'000.0f);
 
 		ImGui::Text(
 			"CS Invocations: %.3f Mil",
-			static_cast<float>(stats.CSInvocations) / 1'000'000.0f);
+			stats.CSInvocations / 1'000'000.0f);
+
+		ImGui::Dummy(ImVec2(0.0f, 20.0f));
 
 		ImGui::Text(
-			"Current GPU Memory Usage: %.1f GB",
-			_GPUMemoryInfo.CurrentUsage / 1'000'000'000.0f);
+			"Current DX12 GPU Memory Usage: %.1f GB / %.1f GB",
+			_GPUMemoryInfo.CurrentUsage / 1'000'000'000.0f,
+			_GPUMemoryInfo.Budget / 1'000'000'000.0f);
 
 		ImGui::Text(
-			"Current CPU Memory Usage: %.1f GB",
-			_CPUMemoryInfo.CurrentUsage / 1'000'000'000.0f);
+			"Current DX12 CPU Memory Usage: %.1f GB / %.1f GB",
+			_CPUMemoryInfo.CurrentUsage / 1'000'000'000.0f,
+			_CPUMemoryInfo.Budget / 1'000'000'000.0f);
+
+		ImGui::Dummy(ImVec2(0.0f, 20.0f));
 
 		ImGui::Text(
 			"Frame Time: %.1f ms",
 			_profiler->GetTimeMS(DX::CommandQueue.Get()));
+
+		ImGui::Dummy(ImVec2(0.0f, 20.0f));
 
 		if (ImGui::Checkbox("Software Rasterization", &Settings::SWREnabled))
 		{
