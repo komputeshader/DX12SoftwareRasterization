@@ -19,7 +19,6 @@ Demo attemps to distribute load over threads  with the notion of big triangle - 
 * Partial derivatives for software rasterizer.
 * Per-triangle culling.
 * Geometry meshletization and meshlets culling.
-* Previous frame hi-z culling.
 
 # Papers and other resources used:
 * [A Parallel Algorithm for Polygon Rasterization](https://www.cs.drexel.edu/~david/Classes/Papers/comp175-06-pineda.pdf)
