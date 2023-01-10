@@ -13,7 +13,8 @@ cbuffer SceneCB : register(b0)
 	float2 OutputRes;
 	float2 InvOutputRes;
 	float BigTriangleThreshold;
-	uint3 pad;
+	uint ShowCascades;
+	uint2 pad;
 	float4 CascadeBias[MaxCascadesCount / 4];
 	float4 CascadeSplits[MaxCascadesCount / 4];
 };
@@ -145,11 +146,7 @@ void main(
 
 	float2 dimensions = maxP.xy - minP.xy;
 
-	// one more triangle was rendered
-	// not precise, though, since it still could miss any pixel centers
-	InterlockedAdd(Statistics[1], 1);
-
-	// Hi Z
+	// Hi-Z
 	float mipLevel =
 		ceil(log2(0.5 * max(dimensions.x, dimensions.y)));
 	float tileDepth = Depth.SampleLevel(
@@ -161,6 +158,10 @@ void main(
 	{
 		return;
 	}
+
+	// one more triangle was rendered
+	// not precise, though, since it still could miss any pixel centers
+	InterlockedAdd(Statistics[1], 1);
 
 	[branch]
 	if (dimensions.x * dimensions.y >= BigTriangleThreshold)
@@ -258,9 +259,16 @@ void main(
 					float shadow = GetShadow(viewDepth, positionWS);
 					float3 ambient = 0.2 * SkyColor;
 
-					RenderTarget[pixelCoord] = float4(
-						color * (NdotL * shadow + ambient),
-						1.0);
+					float3 result = color * (NdotL * shadow + ambient);
+					if (ShowCascades)
+					{
+						result = GetCascadeColor(
+							viewDepth,
+							positionWS);
+						result *= (NdotL * shadow + ambient);
+					}
+
+					RenderTarget[pixelCoord] = float4(result, 1.0);
 				}
 			}
 

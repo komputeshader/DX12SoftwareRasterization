@@ -8,6 +8,7 @@ cbuffer DepthSceneCB : register(b0)
 {
 	float4x4 VP;
 	float2 OutputRes;
+	float2 InvOutputRes;
 	float BigTriangleThreshold;
 };
 
@@ -23,6 +24,9 @@ StructuredBuffer<VertexPosition> Positions : register(t0);
 
 StructuredBuffer<uint> Indices : register(t8);
 StructuredBuffer<Instance> Instances : register(t9);
+Texture2D HiZ : register(t10);
+
+SamplerState DepthSampler : register(s0);
 
 RWTexture2D<uint> Depth : register(u0);
 AppendStructuredBuffer<BigTriangle> BigTriangles : register(u1);
@@ -129,6 +133,19 @@ void main(
 	minP.xy = SnapMinBoundToPixelCenter(minP.xy);
 
 	float2 dimensions = maxP.xy - minP.xy;
+
+	// Hi-Z
+	float mipLevel =
+		ceil(log2(0.5 * max(dimensions.x, dimensions.y)));
+	float tileDepth = HiZ.SampleLevel(
+		DepthSampler,
+		(minP.xy + maxP.xy) * 0.5 * InvOutputRes,
+		mipLevel).r;
+	[branch]
+	if (tileDepth > maxP.z)
+	{
+		return;
+	}
 
 	// one more triangle was rendered
 	// not precise, though, since it still could miss any pixel centers

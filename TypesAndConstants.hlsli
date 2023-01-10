@@ -4,6 +4,9 @@
 static const uint MaxCascadesCount = 8;
 static const float3 SkyColor = float3(136.0, 198.0, 252.0) / 255.0;
 
+static const float FloatMax = 3.402823466e+38;
+static const float FloatMin = 1.175494351e-38;
+
 static const uint SWRBigTriangleThreadsX = 8;
 static const uint SWRBigTriangleThreadsY = 8;
 static const uint SWRBigTriangleThreadsZ = 1;

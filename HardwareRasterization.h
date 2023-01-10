@@ -5,6 +5,8 @@
 #include "Settings.h"
 #include "Shadows.h"
 
+class ForwardRenderer;
+
 class HardwareRasterization
 {
 public:
@@ -15,11 +17,10 @@ public:
 	~HardwareRasterization() = default;
 
 	void Resize(
+		ForwardRenderer* renderer,
 		UINT width,
 		UINT height);
-	void Draw(
-		ID3D12Resource* renderTarget,
-		CD3DX12_CPU_DESCRIPTOR_HANDLE RTVHandle);
+	void Draw(ID3D12Resource* renderTarget);
 	void Update();
 
 	auto* GetCulledCommands(UINT frame)
@@ -47,9 +48,7 @@ private:
 	void _beginFrame();
 	void _drawDepth();
 	void _drawShadows();
-	void _drawOpaque(
-		ID3D12Resource* renderTarget,
-		CD3DX12_CPU_DESCRIPTOR_HANDLE RTVHandle);
+	void _drawOpaque(ID3D12Resource* renderTarget);
 	void _endFrame();
 
 	CD3DX12_VIEWPORT _viewport;
@@ -76,4 +75,5 @@ private:
 
 	UINT _width;
 	UINT _height;
+	ForwardRenderer* _renderer;
 };

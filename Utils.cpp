@@ -9,6 +9,69 @@ using Microsoft::WRL::ComPtr;
 namespace Utils
 {
 
+ComPtr<ID3D12RootSignature> HiZRS;
+ComPtr<ID3D12PipelineState> HiZPSO;
+
+void InitializeResources()
+{
+	CD3DX12_ROOT_PARAMETER1 computeRootParameters[3] = {};
+	computeRootParameters[0].InitAsConstants(6, 0);
+	CD3DX12_DESCRIPTOR_RANGE1 ranges[2] = {};
+	ranges[0].Init(
+		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+		1,
+		0);
+	computeRootParameters[1].InitAsDescriptorTable(1, &ranges[0]);
+	ranges[1].Init(
+		D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
+		1,
+		0);
+	computeRootParameters[2].InitAsDescriptorTable(1, &ranges[1]);
+
+	D3D12_STATIC_SAMPLER_DESC sampler = {};
+	sampler.Filter = D3D12_FILTER_MINIMUM_MIN_MAG_MIP_LINEAR;
+	sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+	sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+	sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+	sampler.MipLODBias = 0;
+	sampler.MaxAnisotropy = 0;
+	sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+	sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+	sampler.MinLOD = 0.0f;
+	sampler.MaxLOD = D3D12_FLOAT32_MAX;
+	sampler.ShaderRegister = 0;
+	sampler.RegisterSpace = 0;
+	sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+	CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC computeRootSignatureDesc;
+	computeRootSignatureDesc.Init_1_1(
+		_countof(computeRootParameters),
+		computeRootParameters,
+		1,
+		&sampler);
+
+	Utils::CreateRS(
+		computeRootSignatureDesc,
+		HiZRS);
+	NAME_D3D12_OBJECT(HiZRS);
+
+	ShaderHelper computeShader;
+	ReadDataFromFile(
+		Utils::GetAssetFullPath(L"GenerateHiZMipCS.cso").c_str(),
+		&computeShader.data,
+		&computeShader.size);
+
+	D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+	psoDesc.pRootSignature = HiZRS.Get();
+	psoDesc.CS = { computeShader.data, computeShader.size };
+
+	ThrowIfFailed(
+		DX::Device->CreateComputePipelineState(
+			&psoDesc,
+			IID_PPV_ARGS(&HiZPSO)));
+	NAME_D3D12_OBJECT(HiZPSO);
+}
+
 AABB MergeAABBs(const AABB& a, const AABB& b)
 {
 	XMVECTOR ac = XMLoadFloat3(&a.center);
@@ -245,21 +308,20 @@ UINT MipsCount(UINT width, UINT height)
 }
 
 void GenerateHiZ(
-	ID3D12Resource* resource,
 	ID3D12GraphicsCommandList* commandList,
-	ID3D12RootSignature* HiZRS,
-	ID3D12PipelineState* HiZPSO,
+	ID3D12Resource* resource,
 	UINT startSRV,
 	UINT startUAV,
 	UINT inputWidth,
-	UINT inputHeight)
+	UINT inputHeight,
+	UINT arraySlice)
 {
 	PIXBeginEvent(commandList, 0, L"Generate Hi Z");
 
-	commandList->SetComputeRootSignature(HiZRS);
-	commandList->SetPipelineState(HiZPSO);
+	commandList->SetComputeRootSignature(HiZRS.Get());
+	commandList->SetPipelineState(HiZPSO.Get());
 
-	CD3DX12_RESOURCE_BARRIER barriers[2] = {};
+	CD3DX12_RESOURCE_BARRIER barriers[1] = {};
 	UINT mipsCount = MipsCount(inputWidth, inputHeight);
 	UINT outputWidth;
 	UINT outputHeight;
@@ -292,7 +354,7 @@ void GenerateHiZ(
 			resource,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-			D3D12CalcSubresource(mip - 1, 0, 0, mipsCount, 0));
+			D3D12CalcSubresource(mip - 1, arraySlice, 0, mipsCount, 0));
 		commandList->ResourceBarrier(1, barriers);
 
 		commandList->SetComputeRoot32BitConstants(
@@ -311,14 +373,14 @@ void GenerateHiZ(
 			DispatchSize(Settings::HiZThreadsX, outputWidth),
 			DispatchSize(Settings::HiZThreadsY, outputHeight),
 			1);
-
-		barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(
-			resource,
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-			D3D12CalcSubresource(mip - 1, 0, 0, mipsCount, 0));
-		commandList->ResourceBarrier(1, barriers);
 	}
+
+	barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(
+		resource,
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+		D3D12CalcSubresource(mipsCount - 1, arraySlice, 0, mipsCount, 0));
+	commandList->ResourceBarrier(1, barriers);
 
 	PIXEndEvent(commandList);
 }
@@ -332,6 +394,8 @@ void GPUBuffer::Initialize(
 	UINT SRVIndex,
 	LPCWSTR name)
 {
+	assert(_buffer.Get() == nullptr);
+
 	if (endState == D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER)
 	{
 		_isVB = true;

@@ -16,19 +16,25 @@ public:
 
 	void Initialize();
 	void Update();
+	void PreparePrevFrameShadowMap();
 
 	void GUINewFrame();
 
-	ID3D12Resource* GetShadowMapResourceHWR() { return _shadowMapHWR.Get(); }
-	ID3D12Resource* GetShadowMapResourceSWR() { return _shadowMapSWR.Get(); }
+	ID3D12Resource* GetShadowMapHWR() { return _shadowMapHWR.Get(); }
+	ID3D12Resource* GetShadowMapSWR() { return _shadowMapSWR.Get(); }
 	ID3D12PipelineState* GetPSO() { return _shadowsPSO.Get(); }
 	const CD3DX12_VIEWPORT& GetViewport() { return _viewport; }
 	const CD3DX12_RECT& GetScissorRect() { return _scissorRect; }
 
-	const DirectX::XMFLOAT4X4& GetViewProjectionMatrixF(UINT cascade) const
+	const DirectX::XMFLOAT4X4& GetCascadeVP(UINT cascade) const
 	{
 		assert(cascade < Settings::MaxCascadesCount);
 		return _cascadeVP[cascade];
+	}
+	const DirectX::XMFLOAT4X4& GetPrevFrameCascadeVP(UINT cascade) const
+	{
+		assert(cascade < Settings::MaxCascadesCount);
+		return _prevFrameCascadeVP[cascade];
 	}
 	float GetCascadeBias(UINT cascade) const
 	{
@@ -59,6 +65,7 @@ private:
 
 	void _createHWRShadowMapResources();
 	void _createSWRShadowMapResources();
+	void _createPrevFrameShadowMapResources();
 	void _createPSO();
 	void _updateFrustumPlanes();
 	void _computeNearAndFar(
@@ -74,10 +81,13 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12Resource> _shadowMapHWR;
 	// SWR needs unordered writes
 	Microsoft::WRL::ComPtr<ID3D12Resource> _shadowMapSWR;
+	// for Hi-Z culling
+	Microsoft::WRL::ComPtr<ID3D12Resource> _prevFrameShadowMap;
 	CD3DX12_VIEWPORT _viewport;
 	CD3DX12_RECT _scissorRect;
 
 	DirectX::XMFLOAT4X4 _cascadeVP[Settings::MaxCascadesCount];
+	DirectX::XMFLOAT4X4 _prevFrameCascadeVP[Settings::MaxCascadesCount];
 	Frustum _cascadeFrustums[Settings::MaxCascadesCount];
 	float _cascadeBias[Settings::MaxCascadesCount];
 	float _cascadeSplitsNormalized[Settings::MaxCascadesCount];

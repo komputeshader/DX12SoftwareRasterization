@@ -22,6 +22,7 @@ ComPtr<ID3D12Fence> Fence;
 ComPtr<ID3D12Fence> ComputeFence;
 UINT64 FenceValues[FramesCount];
 
+DXGI_ADAPTER_DESC1 AdapterDesc;
 D3D12_FEATURE_DATA_ROOT_SIGNATURE RSFeatureData;
 
 UINT FrameIndex;
@@ -42,7 +43,9 @@ void GetHardwareAdapter(
 			UINT adapterIndex = 0;
 			SUCCEEDED(factory6->EnumAdapterByGpuPreference(
 				adapterIndex,
-				requestHighPerformanceAdapter == true ? DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE : DXGI_GPU_PREFERENCE_UNSPECIFIED,
+				requestHighPerformanceAdapter == true
+				? DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE
+				: DXGI_GPU_PREFERENCE_UNSPECIFIED,
 				IID_PPV_ARGS(&adapter)));
 			++adapterIndex)
 		{
@@ -58,7 +61,12 @@ void GetHardwareAdapter(
 
 			// Check to see whether the adapter supports Direct3D 12, but don't create the
 			// actual device yet.
-			if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), nullptr)))
+			if (SUCCEEDED(
+				D3D12CreateDevice(
+					adapter.Get(),
+					D3D_FEATURE_LEVEL_11_0,
+					_uuidof(ID3D12Device),
+					nullptr)))
 			{
 				break;
 			}
@@ -81,7 +89,12 @@ void GetHardwareAdapter(
 
 			// Check to see whether the adapter supports Direct3D 12, but don't create the
 			// actual device yet.
-			if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), nullptr)))
+			if (SUCCEEDED(
+				D3D12CreateDevice(
+					adapter.Get(),
+					D3D_FEATURE_LEVEL_11_0,
+					_uuidof(ID3D12Device),
+					nullptr)))
 			{
 				break;
 			}
@@ -144,6 +157,8 @@ void CreateDevice()
 		ThrowIfFailed(hardwareAdapter.As(&Adapter));
 	}
 	NAME_D3D12_OBJECT(Device);
+
+	Adapter->GetDesc1(&AdapterDesc);
 
 	RSFeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
 

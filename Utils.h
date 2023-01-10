@@ -6,6 +6,11 @@
 namespace Utils
 {
 
+extern Microsoft::WRL::ComPtr<ID3D12RootSignature> HiZRS;
+extern Microsoft::WRL::ComPtr<ID3D12PipelineState> HiZPSO;
+
+void InitializeResources();
+
 inline UINT DispatchSize(UINT groupSize, UINT elementsCount)
 {
 	assert(groupSize != 0 && "DispatchSize : groupSize cannot be 0");
@@ -49,14 +54,13 @@ void CreateRS(
 UINT MipsCount(UINT width, UINT height);
 
 void GenerateHiZ(
-	ID3D12Resource* resource,
 	ID3D12GraphicsCommandList* commandList,
-	ID3D12RootSignature* HiZRS,
-	ID3D12PipelineState* HiZPSO,
+	ID3D12Resource* resource,
 	UINT startSRV,
 	UINT startUAV,
 	UINT inputWidth,
-	UINT inputHeight);
+	UINT inputHeight,
+	UINT arraySlice = 0);
 
 inline std::wstring GetAssetFullPath(LPCWSTR assetName)
 {

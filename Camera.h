@@ -33,58 +33,26 @@ public:
 		const DirectX::XMFLOAT3& target,
 		const DirectX::XMFLOAT3& up);
 
-	DirectX::XMMATRIX GetViewMatrix() const
+	const DirectX::XMFLOAT4X4& GetView() const { return _view; }
+	const DirectX::XMFLOAT4X4& GetProjection() const { return _projection; }
+	const DirectX::XMFLOAT4X4& GetVP() const { return _viewProjection; }
+	const DirectX::XMFLOAT4X4& GetPrevFrameVP() const
 	{
-		assert(!_dirty);
-		return DirectX::XMLoadFloat4x4(&_view);
-	}
-	DirectX::XMMATRIX GetProjectionMatrix() const
-	{
-		return DirectX::XMLoadFloat4x4(&_projection);
+		return _prevFrameViewProjection;
 	}
 
-	const DirectX::XMFLOAT4X4& GetViewMatrixF() const
-	{
-		assert(!_dirty);
-		return _view;
-	}
-	const DirectX::XMFLOAT4X4& GetProjectionMatrixF() const { return _projection; }
-	const DirectX::XMFLOAT4X4& GetViewProjectionMatrixF() const
-	{
-		assert(!_dirty);
-		return _viewProjection;
-	}
-
-	Frustum GetFrustum() const { assert(!_dirty); return _frustum; }
+	Frustum GetFrustum() const { return _frustum; }
 
 	const DirectX::XMFLOAT4& GetFrustumCornerWS(UINT corner) const
 	{
-		assert(!_dirty);
 		assert(corner < 8);
 		return _frustum.cornersWS[corner];
 	}
 
-	DirectX::XMVECTOR GetUpVector() const
-	{
-		return DirectX::XMLoadFloat3(&_up);
-	}
-	DirectX::XMVECTOR GetRightVector() const
-	{
-		return DirectX::XMLoadFloat3(&_right);
-	}
-	DirectX::XMVECTOR GetLookVector() const
-	{
-		return DirectX::XMLoadFloat3(&_look);
-	}
-	DirectX::XMVECTOR GetPosition() const
-	{
-		return DirectX::XMLoadFloat3(&_position);
-	}
-
-	const DirectX::XMFLOAT3& GetUpVectorF() const { return _up; }
-	const DirectX::XMFLOAT3& GetRightVectorF() const { return _right; }
-	const DirectX::XMFLOAT3& GetLookVectorF() const { return _look; }
-	const DirectX::XMFLOAT3& GetPositionF() const { return _position; }
+	const DirectX::XMFLOAT3& GetUp() const { return _up; }
+	const DirectX::XMFLOAT3& GetRight() const { return _right; }
+	const DirectX::XMFLOAT3& GetLook() const { return _look; }
+	const DirectX::XMFLOAT3& GetPosition() const { return _position; }
 
 	void SetPosition(float x, float y, float z);
 	void SetPosition(const DirectX::XMFLOAT3& pos);
@@ -111,6 +79,7 @@ private:
 	DirectX::XMFLOAT4X4 _view = Identity4x4;
 	DirectX::XMFLOAT4X4 _projection = Identity4x4;
 	DirectX::XMFLOAT4X4 _viewProjection = Identity4x4;
+	DirectX::XMFLOAT4X4 _prevFrameViewProjection = Identity4x4;
 
 	Frustum _frustum;
 
@@ -127,5 +96,4 @@ private:
 	float _farWindowHeight = 0.0f;
 
 	bool _reverseZ = true;
-	bool _dirty = false;
 };

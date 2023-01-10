@@ -18,13 +18,25 @@ cbuffer CullingCB : register(b0)
 	uint TotalInstancesCount;
 	uint TotalMeshesCount;
 	uint CascadesCount;
-	uint pad0;
+	uint FrustumCullingEnabled;
+	uint CameraHiZCullingEnabled;
+	uint ShadowsHiZCullingEnabled;
+	float2 DepthResolution;
+	float2 ShadowMapResolution;
+	uint2 pad;
 	Frustum Camera;
 	Frustum Cascade[MaxCascadesCount];
+	float4x4 PrevFrameCameraVP;
+	float4x4 PrevFrameCascadeVP[MaxCascadesCount];
 };
 
 StructuredBuffer<MeshMeta> MeshesMeta : register(t0);
 StructuredBuffer<Instance> Instances : register(t1);
+
+Texture2D PrevFrameDepth : register(t2);
+Texture2D CascadeShadowMap[MaxCascadesCount] : register(t3);
+
+SamplerState DepthSampler : register(s0);
 
 // ugly hardcode, but memory is read once for all frustums
 RWStructuredBuffer<Instance> CameraVisibleInstances : register(u0);
@@ -90,6 +102,53 @@ bool AABBVsFrustum(AABB box, Frustum frustum)
 	return l && r && b && t && n && f && largeAABBTest;
 }
 
+bool AABBVsHiZ(
+	in AABB box,
+	in float4x4 VP,
+	in float2 HiZResolution,
+	in Texture2D HiZ)
+{
+	float3 boxCorners[8] =
+	{
+		box.center + box.extents * float3(1.0, 1.0, 1.0),
+		box.center + box.extents * float3(1.0, 1.0, -1.0),
+		box.center + box.extents * float3(1.0, -1.0, 1.0),
+		box.center + box.extents * float3(1.0, -1.0, -1.0),
+		box.center + box.extents * float3(-1.0, 1.0, 1.0),
+		box.center + box.extents * float3(-1.0, 1.0, -1.0),
+		box.center + box.extents * float3(-1.0, -1.0, 1.0),
+		box.center + box.extents * float3(-1.0, -1.0, -1.0)
+	};
+
+	float3 minP = FloatMax.xxx;
+	float3 maxP = -FloatMax.xxx;
+	[unroll]
+	for (uint corner = 0; corner < 8; corner++)
+	{
+		float4 cornerNDC = mul(
+			VP,
+			float4(boxCorners[corner], 1.0));
+		cornerNDC.xyz /= cornerNDC.w;
+
+		minP = min(minP, cornerNDC.xyz);
+		maxP = max(maxP, cornerNDC.xyz);
+	}
+	// NDC -> DX [0,1]
+	minP.xy = minP.xy * float2(0.5, -0.5) + float2(0.5, 0.5);
+	maxP.xy = maxP.xy * float2(0.5, -0.5) + float2(0.5, 0.5);
+
+	float mipLevel =
+		ceil(log2(0.5 * max(
+			(maxP.x - minP.x) * HiZResolution.x,
+			(maxP.y - minP.y) * HiZResolution.y)));
+	float tileDepth = HiZ.SampleLevel(
+		DepthSampler,
+		(minP.xy + maxP.xy) * 0.5,
+		mipLevel).r;
+
+	return !(tileDepth > maxP.z);
+}
+
 [numthreads(CullingThreadsX, CullingThreadsY, CullingThreadsZ)]
 void main(
 	uint3 groupID : SV_GroupID,
@@ -108,58 +167,103 @@ void main(
 
 	uint writeIndex = meshMeta.startInstanceLocation;
 
-	if (AABBVsFrustum(meshMeta.aabb, Camera))
+	bool cameraFC = AABBVsFrustum(meshMeta.aabb, Camera);
+	if (cameraFC || !FrustumCullingEnabled)
 	{
-		uint writeOffset;
-		InterlockedAdd(
-			CameraInstancesCounters[instance.meshID],
-			1,
-			writeOffset);
+		bool cameraHiZC = AABBVsHiZ(
+			meshMeta.aabb,
+			PrevFrameCameraVP,
+			DepthResolution,
+			PrevFrameDepth);
+		if (cameraHiZC || !CameraHiZCullingEnabled)
+		{
+			uint writeOffset;
+			InterlockedAdd(
+				CameraInstancesCounters[instance.meshID],
+				1,
+				writeOffset);
 
-		CameraVisibleInstances[writeIndex + writeOffset] = instance;
+			CameraVisibleInstances[writeIndex + writeOffset] = instance;
+		}
 	}
 
-	if (AABBVsFrustum(meshMeta.aabb, Cascade[0]))
+	bool cascade0FC = AABBVsFrustum(meshMeta.aabb, Cascade[0]);
+	if (cascade0FC || !FrustumCullingEnabled)
 	{
-		uint writeOffset;
-		InterlockedAdd(
-			Cascade0InstancesCounters[instance.meshID],
-			1,
-			writeOffset);
+		bool cascade0HiZC = AABBVsHiZ(
+			meshMeta.aabb,
+			PrevFrameCascadeVP[0],
+			ShadowMapResolution,
+			CascadeShadowMap[0]);
+		if (cascade0HiZC || !ShadowsHiZCullingEnabled)
+		{
+			uint writeOffset;
+			InterlockedAdd(
+				Cascade0InstancesCounters[instance.meshID],
+				1,
+				writeOffset);
 
-		Cascade0VisibleInstances[writeIndex + writeOffset] = instance;
+			Cascade0VisibleInstances[writeIndex + writeOffset] = instance;
+		}
 	}
 
-	if (AABBVsFrustum(meshMeta.aabb, Cascade[1]))
+	bool cascade1FC = AABBVsFrustum(meshMeta.aabb, Cascade[1]);
+	if (cascade1FC || !FrustumCullingEnabled)
 	{
-		uint writeOffset;
-		InterlockedAdd(
-			Cascade1InstancesCounters[instance.meshID],
-			1,
-			writeOffset);
+		bool cascade1HiZC = AABBVsHiZ(
+			meshMeta.aabb,
+			PrevFrameCascadeVP[1],
+			ShadowMapResolution,
+			CascadeShadowMap[1]);
+		if (cascade1HiZC || !ShadowsHiZCullingEnabled)
+		{
+			uint writeOffset;
+			InterlockedAdd(
+				Cascade1InstancesCounters[instance.meshID],
+				1,
+				writeOffset);
 
-		Cascade1VisibleInstances[writeIndex + writeOffset] = instance;
+			Cascade1VisibleInstances[writeIndex + writeOffset] = instance;
+		}
 	}
 
-	if (AABBVsFrustum(meshMeta.aabb, Cascade[2]))
+	bool cascade2FC = AABBVsFrustum(meshMeta.aabb, Cascade[2]);
+	if (cascade2FC || !FrustumCullingEnabled)
 	{
-		uint writeOffset;
-		InterlockedAdd(
-			Cascade2InstancesCounters[instance.meshID],
-			1,
-			writeOffset);
+		bool cascade2HiZC = AABBVsHiZ(
+			meshMeta.aabb,
+			PrevFrameCascadeVP[2],
+			ShadowMapResolution,
+			CascadeShadowMap[2]);
+		if (cascade2HiZC || !ShadowsHiZCullingEnabled)
+		{
+			uint writeOffset;
+			InterlockedAdd(
+				Cascade2InstancesCounters[instance.meshID],
+				1,
+				writeOffset);
 
-		Cascade2VisibleInstances[writeIndex + writeOffset] = instance;
+			Cascade2VisibleInstances[writeIndex + writeOffset] = instance;
+		}
 	}
 
-	if (AABBVsFrustum(meshMeta.aabb, Cascade[3]))
+	bool cascade3FC = AABBVsFrustum(meshMeta.aabb, Cascade[3]);
+	if (cascade3FC || !FrustumCullingEnabled)
 	{
-		uint writeOffset;
-		InterlockedAdd(
-			Cascade3InstancesCounters[instance.meshID],
-			1,
-			writeOffset);
+		bool cascade3HiZC = AABBVsHiZ(
+			meshMeta.aabb,
+			PrevFrameCascadeVP[3],
+			ShadowMapResolution,
+			CascadeShadowMap[3]);
+		if (cascade3HiZC || !ShadowsHiZCullingEnabled)
+		{
+			uint writeOffset;
+			InterlockedAdd(
+				Cascade3InstancesCounters[instance.meshID],
+				1,
+				writeOffset);
 
-		Cascade3VisibleInstances[writeIndex + writeOffset] = instance;
+			Cascade3VisibleInstances[writeIndex + writeOffset] = instance;
+		}
 	}
 }

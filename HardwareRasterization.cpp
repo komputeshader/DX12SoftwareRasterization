@@ -1,9 +1,6 @@
 #include "HardwareRasterization.h"
-#include "Win32Application.h"
-#include "Scene.h"
 #include "DescriptorManager.h"
-#include "DXSampleHelper.h"
-#include "DX.h"
+#include "ForwardRenderer.h"
 #include "imgui/imgui_impl_win32.h"
 #include "imgui/imgui_impl_dx12.h"
 
@@ -32,9 +29,12 @@ struct IndirectCommand
 };
 
 void HardwareRasterization::Resize(
+	ForwardRenderer* renderer,
 	UINT width,
 	UINT height)
 {
+	_renderer = renderer;
+
 	_width = width;
 	_height = height;
 
@@ -186,14 +186,14 @@ void HardwareRasterization::Update()
 	Camera& camera = Scene::CurrentScene->camera;
 
 	DepthSceneCB depthSceneCB = {};
-	depthSceneCB.VP = camera.GetViewProjectionMatrixF();
+	depthSceneCB.VP = camera.GetVP();
 	memcpy(
 		_depthSceneCBData + DX::FrameIndex * _depthSceneCBFrameSize,
 		&depthSceneCB,
 		sizeof(DepthSceneCB));
 
 	SceneCB sceneCB = {};
-	sceneCB.VP = camera.GetViewProjectionMatrixF();
+	sceneCB.VP = camera.GetVP();
 	sceneCB.cascadesCount = Settings::CascadesCount;
 	sceneCB.showCascades = ShadowsResources::Shadows.ShowCascades() ? 1 : 0;
 	XMStoreFloat3(
@@ -206,10 +206,10 @@ void HardwareRasterization::Update()
 		memcpy(
 			_depthSceneCBData + DX::FrameIndex * _depthSceneCBFrameSize +
 			(1 + cascade) * sizeof(DepthSceneCB),
-			&ShadowsResources::Shadows.GetViewProjectionMatrixF(cascade),
+			&ShadowsResources::Shadows.GetCascadeVP(cascade),
 			sizeof(XMFLOAT4X4));
 		sceneCB.cascadeVP[cascade] =
-			ShadowsResources::Shadows.GetViewProjectionMatrixF(cascade);
+			ShadowsResources::Shadows.GetCascadeVP(cascade);
 		sceneCB.cascadeBias[cascade] =
 			ShadowsResources::Shadows.GetCascadeBias(cascade);
 		sceneCB.cascadeSplits[cascade] =
@@ -222,16 +222,12 @@ void HardwareRasterization::Update()
 		sizeof(SceneCB));
 }
 
-void HardwareRasterization::Draw(
-	ID3D12Resource* renderTarget,
-	CD3DX12_CPU_DESCRIPTOR_HANDLE RTVHandle)
+void HardwareRasterization::Draw(ID3D12Resource* renderTarget)
 {
 	_beginFrame();
 	_drawDepth();
 	_drawShadows();
-	_drawOpaque(
-		renderTarget,
-		RTVHandle);
+	_drawOpaque(renderTarget);
 	_endFrame();
 }
 
@@ -241,13 +237,14 @@ void HardwareRasterization::_beginFrame()
 		D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	DX::CommandList->IASetIndexBuffer(
 		&Scene::CurrentScene->indicesGPU.GetIBView());
-	DX::CommandList->SetGraphicsRootSignature(_HWRRS.Get());
 }
 
 void HardwareRasterization::_drawDepth()
 {
 	PIXBeginEvent(DX::CommandList.Get(), 0, L"Depth Pass");
 
+	DX::CommandList->SetGraphicsRootSignature(_HWRRS.Get());
+	DX::CommandList->SetPipelineState(_depthPSO.Get());
 	DX::CommandList->SetGraphicsRootConstantBufferView(
 		0,
 		_depthSceneCB->GetGPUVirtualAddress() +
@@ -257,7 +254,6 @@ void HardwareRasterization::_drawDepth()
 		Settings::CullingEnabled
 		? Descriptors::SV.GetGPUHandle(VisibleInstancesSRV + DX::FrameIndex * PerFrameDescriptorsCount)
 		: Scene::CurrentScene->instancesGPU.GetSRV());
-	DX::CommandList->SetPipelineState(_depthPSO.Get());
 	DX::CommandList->IASetVertexBuffers(
 		0,
 		1,
@@ -311,6 +307,8 @@ void HardwareRasterization::_drawDepth()
 		}
 	}
 
+	_renderer->PreparePrevFrameDepth(_depthBuffer.Get());
+
 	PIXEndEvent(DX::CommandList.Get());
 }
 
@@ -320,11 +318,12 @@ void HardwareRasterization::_drawShadows()
 
 	CD3DX12_RESOURCE_BARRIER barriers[1] = {};
 	barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(
-		ShadowsResources::Shadows.GetShadowMapResourceHWR(),
+		ShadowsResources::Shadows.GetShadowMapHWR(),
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 		D3D12_RESOURCE_STATE_DEPTH_WRITE);
 	DX::CommandList->ResourceBarrier(_countof(barriers), barriers);
 
+	DX::CommandList->SetGraphicsRootSignature(_HWRRS.Get());
 	DX::CommandList->SetPipelineState(ShadowsResources::Shadows.GetPSO());
 	DX::CommandList->RSSetViewports(
 		1, &ShadowsResources::Shadows.GetViewport());
@@ -392,18 +391,23 @@ void HardwareRasterization::_drawShadows()
 		}
 	}
 
-	barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(
-		ShadowsResources::Shadows.GetShadowMapResourceHWR(),
-		D3D12_RESOURCE_STATE_DEPTH_WRITE,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-	DX::CommandList->ResourceBarrier(_countof(barriers), barriers);
+	if (Settings::ShadowsHiZCullingEnabled)
+	{
+		ShadowsResources::Shadows.PreparePrevFrameShadowMap();
+	}
+	else
+	{
+		barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(
+			ShadowsResources::Shadows.GetShadowMapHWR(),
+			D3D12_RESOURCE_STATE_DEPTH_WRITE,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		DX::CommandList->ResourceBarrier(1, barriers);
+	}
 
 	PIXEndEvent(DX::CommandList.Get());
 }
 
-void HardwareRasterization::_drawOpaque(
-	ID3D12Resource* renderTarget,
-	CD3DX12_CPU_DESCRIPTOR_HANDLE RTVHandle)
+void HardwareRasterization::_drawOpaque(ID3D12Resource* renderTarget)
 {
 	PIXBeginEvent(DX::CommandList.Get(), 0, L"Opaque Pass");
 
@@ -416,6 +420,8 @@ void HardwareRasterization::_drawOpaque(
 	};
 	DX::CommandList->ResourceBarrier(_countof(barriers), barriers);
 
+	DX::CommandList->SetGraphicsRootSignature(_HWRRS.Get());
+	DX::CommandList->SetPipelineState(_opaquePSO.Get());
 	DX::CommandList->RSSetViewports(1, &_viewport);
 	DX::CommandList->RSSetScissorRects(1, &_scissorRect);
 	D3D12_VERTEX_BUFFER_VIEW VBVs[] =
@@ -426,7 +432,6 @@ void HardwareRasterization::_drawOpaque(
 		Scene::CurrentScene->texcoordsGPU.GetVBView()
 	};
 	DX::CommandList->IASetVertexBuffers(0, _countof(VBVs), VBVs);
-	DX::CommandList->SetPipelineState(_opaquePSO.Get());
 	DX::CommandList->SetGraphicsRootConstantBufferView(
 		0,
 		_sceneCB->GetGPUVirtualAddress() + DX::FrameIndex * sizeof(SceneCB));
@@ -437,8 +442,10 @@ void HardwareRasterization::_drawOpaque(
 			DX::FrameIndex * PerFrameDescriptorsCount)
 		: Scene::CurrentScene->instancesGPU.GetSRV());
 	DX::CommandList->SetGraphicsRootDescriptorTable(
-		3, Descriptors::SV.GetGPUHandle(ShadowMapSRV));
+		3, Descriptors::SV.GetGPUHandle(HWRShadowMapSRV));
 	auto DSVHandle = Descriptors::DS.GetCPUHandle(HWRDepthDSV);
+	auto RTVHandle =
+		Descriptors::RT.GetCPUHandle(ForwardRendererRTV + DX::FrameIndex);
 	DX::CommandList->OMSetRenderTargets(1, &RTVHandle, FALSE, &DSVHandle);
 	DX::CommandList->ClearRenderTargetView(RTVHandle, SkyColor, 0, nullptr);
 

@@ -9,7 +9,8 @@ cbuffer SceneCB : register(b0)
 	float2 OutputRes;
 	float2 InvOutputRes;
 	float BigTriangleThreshold;
-	uint3 pad;
+	uint ShowCascades;
+	uint2 pad;
 	float4 CascadeBias[MaxCascadesCount / 4];
 	float4 CascadeSplits[MaxCascadesCount / 4];
 };
@@ -226,8 +227,17 @@ void main(
 					float shadow = GetShadow(viewDepth, positionWS);
 					float3 ambient = 0.2 * SkyColor;
 
+					float3 result = color * (NdotL * shadow + ambient);
+					if (ShowCascades)
+					{
+						result = GetCascadeColor(
+							viewDepth,
+							positionWS);
+						result *= (NdotL * shadow + ambient);
+					}
+
 					RenderTarget[uint2(x, y)] = float4(
-						color * (NdotL * shadow + ambient),
+						result,
 						1.0);
 				}
 			}

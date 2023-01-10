@@ -4,6 +4,8 @@
 #include "Utils.h"
 #include "Shadows.h"
 
+class ForwardRenderer;
+
 class SoftwareRasterization
 {
 public:
@@ -14,9 +16,9 @@ public:
 	~SoftwareRasterization() = default;
 
 	void Resize(
+		ForwardRenderer* renderer,
 		UINT width,
 		UINT height);
-
 	void GUINewFrame();
 	void Update();
 	void Draw();
@@ -76,7 +78,6 @@ private:
 		INT baseVertexLocation,
 		UINT startInstanceLocation);
 
-	void _createHiZPSO();
 	void _createTriangleDepthPSO();
 	void _createBigTriangleDepthPSO();
 	void _createTriangleOpaquePSO();
@@ -85,7 +86,6 @@ private:
 	// need these two for UAV writes
 	Microsoft::WRL::ComPtr<ID3D12Resource> _renderTarget;
 	Microsoft::WRL::ComPtr<ID3D12Resource> _depthBuffer;
-	Microsoft::WRL::ComPtr<ID3D12Resource> _prevDepthBuffer;
 
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> _triangleDepthRS;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> _triangleDepthPSO;
@@ -95,8 +95,6 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> _triangleOpaquePSO;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> _bigTriangleOpaqueRS;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> _bigTriangleOpaquePSO;
-	Microsoft::WRL::ComPtr<ID3D12RootSignature> _HiZRS;
-	Microsoft::WRL::ComPtr<ID3D12PipelineState> _HiZPSO;
 	Microsoft::WRL::ComPtr<ID3D12Resource> _bigTriangles;
 	Microsoft::WRL::ComPtr<ID3D12Resource> _depthSceneCB;
 	UINT8* _depthSceneCBData;
@@ -106,6 +104,7 @@ private:
 
 	UINT _width = 0;
 	UINT _height = 0;
+	ForwardRenderer* _renderer;
 
 	// MDI stuff
 	Microsoft::WRL::ComPtr<ID3D12CommandSignature> _triangleDepthCS;

@@ -12,28 +12,32 @@ enum CBVSRVUAVIndices
 	CullingCountersSRV = InstancesSRV + ScenesCount,
 	CullingCountersUAV = CullingCountersSRV + Settings::FrustumsCount,
 	GUIFontTextureSRV = CullingCountersUAV + Settings::FrustumsCount,
-	ShadowMapSRV,
+	HWRShadowMapSRV,
 	VertexPositionsSRV,
 	VertexNormalsSRV = VertexPositionsSRV + ScenesCount,
 	VertexColorsSRV = VertexNormalsSRV + ScenesCount,
 	VertexTexcoordsSRV = VertexColorsSRV + ScenesCount,
 	IndicesSRV = VertexTexcoordsSRV + ScenesCount,
 	SWRDepthSRV = IndicesSRV + ScenesCount,
-	SWRDepthMipsSRV,
-	SWRDepthMipsUAV = SWRDepthMipsSRV +
-		Settings::Demo.BackBufferMipsCount,
-	SWRRenderTargetUAV = SWRDepthMipsUAV +
-		Settings::Demo.BackBufferMipsCount,
+	SWRDepthUAV,
+	PrevFrameDepthSRV,
+	PrevFrameDepthMipsSRV,
+	PrevFrameDepthMipsUAV = PrevFrameDepthMipsSRV +
+		Settings::BackBufferMipsCount,
+	SWRRenderTargetUAV = PrevFrameDepthMipsUAV +
+		Settings::BackBufferMipsCount,
 	SWRShadowMapSRV,
-	BigTrianglesSRV,
+	SWRShadowMapUAV,
+	PrevFrameShadowMapSRV = SWRShadowMapUAV + Settings::CascadesCount,
+	PrevFrameShadowMapMipsSRV = PrevFrameShadowMapSRV + Settings::CascadesCount,
+	PrevFrameShadowMapMipsUAV = PrevFrameShadowMapMipsSRV +
+		Settings::CascadesCount * Settings::ShadowMapMipsCount,
+	BigTrianglesSRV = PrevFrameShadowMapMipsUAV +
+		Settings::CascadesCount * Settings::ShadowMapMipsCount,
 	BigTrianglesUAV,
 	SWRStatsUAV,
-	CascadeMipsSRV,
-	CascadeMipsUAV = CascadeMipsSRV +
-		Settings::CascadesCount * Settings::ShadowMapMipsCount,
 
-	SingleDescriptorsCount = CascadeMipsUAV +
-		Settings::CascadesCount * Settings::ShadowMapMipsCount,
+	SingleDescriptorsCount,
 
 	// descriptors for frame resources
 	VisibleInstancesSRV = SingleDescriptorsCount,

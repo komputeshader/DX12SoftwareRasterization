@@ -7,6 +7,7 @@ namespace DX
 
 const UINT FramesCount = 2;
 extern UINT FrameIndex;
+extern DXGI_ADAPTER_DESC1 AdapterDesc;
 
 extern Microsoft::WRL::ComPtr<ID3D12Device> Device;
 extern Microsoft::WRL::ComPtr<IDXGIFactory4> Factory;

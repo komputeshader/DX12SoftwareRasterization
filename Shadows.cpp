@@ -29,6 +29,7 @@ void ShadowsResources::Initialize()
 
 	_createHWRShadowMapResources();
 	_createSWRShadowMapResources();
+	_createPrevFrameShadowMapResources();
 	_createPSO();
 
 	_viewport = CD3DX12_VIEWPORT(
@@ -107,7 +108,7 @@ void ShadowsResources::_createHWRShadowMapResources()
 	DX::Device->CreateShaderResourceView(
 		_shadowMapHWR.Get(),
 		&SRVDesc,
-		Descriptors::SV.GetCPUHandle(ShadowMapSRV));
+		Descriptors::SV.GetCPUHandle(HWRShadowMapSRV));
 }
 
 void ShadowsResources::_createSWRShadowMapResources()
@@ -118,8 +119,7 @@ void ShadowsResources::_createSWRShadowMapResources()
 	depthStencilDesc.Width = Settings::ShadowMapRes;
 	depthStencilDesc.Height = Settings::ShadowMapRes;
 	depthStencilDesc.DepthOrArraySize = _cascadesCount;
-	// 0 for max number of mips
-	depthStencilDesc.MipLevels = 0;
+	depthStencilDesc.MipLevels = 1;
 	depthStencilDesc.Format = DXGI_FORMAT_R32_TYPELESS;
 	depthStencilDesc.SampleDesc.Count = 1;
 	depthStencilDesc.SampleDesc.Quality = 0;
@@ -137,7 +137,7 @@ void ShadowsResources::_createSWRShadowMapResources()
 			IID_PPV_ARGS(&_shadowMapSWR)));
 	NAME_D3D12_OBJECT(_shadowMapSWR);
 
-	// shadows SRV
+	// SRV
 	D3D12_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
 	SRVDesc.Shader4ComponentMapping =
 		D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -152,7 +152,81 @@ void ShadowsResources::_createSWRShadowMapResources()
 		&SRVDesc,
 		Descriptors::SV.GetCPUHandle(SWRShadowMapSRV));
 
-	// shadows UAV
+	// UAV
+	D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc = {};
+	UAVDesc.Format = DXGI_FORMAT_R32_UINT;
+	UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
+	UAVDesc.Texture2DArray.ArraySize = 1;
+	UAVDesc.Texture2DArray.PlaneSlice = 0;
+	UAVDesc.Texture2DArray.MipSlice = 0;
+
+	for (UINT cascade = 0; cascade < Settings::CascadesCount; cascade++)
+	{
+		UAVDesc.Texture2DArray.FirstArraySlice = cascade;
+
+		DX::Device->CreateUnorderedAccessView(
+			_shadowMapSWR.Get(),
+			nullptr,
+			&UAVDesc,
+			Descriptors::SV.GetCPUHandle(SWRShadowMapUAV + cascade));
+
+		DX::Device->CreateUnorderedAccessView(
+			_shadowMapSWR.Get(),
+			nullptr,
+			&UAVDesc,
+			Descriptors::NonSV.GetCPUHandle(SWRShadowMapUAV + cascade));
+	}
+}
+
+void ShadowsResources::_createPrevFrameShadowMapResources()
+{
+	D3D12_RESOURCE_DESC depthStencilDesc = {};
+	depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	depthStencilDesc.Alignment = 0;
+	depthStencilDesc.Width = Settings::ShadowMapRes;
+	depthStencilDesc.Height = Settings::ShadowMapRes;
+	depthStencilDesc.DepthOrArraySize = _cascadesCount;
+	// max mip count
+	depthStencilDesc.MipLevels = 0;
+	depthStencilDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+	depthStencilDesc.SampleDesc.Count = 1;
+	depthStencilDesc.SampleDesc.Quality = 0;
+	depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+	auto prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+	ThrowIfFailed(
+		DX::Device->CreateCommittedResource(
+			&prop,
+			D3D12_HEAP_FLAG_NONE,
+			&depthStencilDesc,
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+			nullptr,
+			IID_PPV_ARGS(&_prevFrameShadowMap)));
+	NAME_D3D12_OBJECT(_prevFrameShadowMap);
+
+	// whole resource SRV
+	D3D12_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
+	SRVDesc.Shader4ComponentMapping =
+		D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	SRVDesc.Format = DXGI_FORMAT_R32_FLOAT;
+	SRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+	SRVDesc.Texture2DArray.MipLevels = -1;
+	SRVDesc.Texture2DArray.ArraySize = 1;
+	SRVDesc.Texture2DArray.MostDetailedMip = 0;
+	for (UINT cascade = 0; cascade < Settings::CascadesCount; cascade++)
+	{
+		SRVDesc.Texture2DArray.FirstArraySlice = cascade;
+
+		DX::Device->CreateShaderResourceView(
+			_prevFrameShadowMap.Get(),
+			&SRVDesc,
+			Descriptors::SV.GetCPUHandle(PrevFrameShadowMapSRV + cascade));
+	}
+
+	SRVDesc.Texture2DArray.MipLevels = 1;
+
+	// mips UAVs
 	D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc = {};
 	UAVDesc.Format = DXGI_FORMAT_R32_UINT;
 	UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
@@ -162,7 +236,6 @@ void ShadowsResources::_createSWRShadowMapResources()
 	for (UINT cascade = 0; cascade < Settings::CascadesCount; cascade++)
 	{
 		SRVDesc.Texture2DArray.FirstArraySlice = cascade;
-		SRVDesc.Texture2DArray.ArraySize = 1;
 
 		UAVDesc.Texture2DArray.FirstArraySlice = cascade;
 		for (UINT mip = 0; mip < Settings::ShadowMapMipsCount; mip++)
@@ -172,26 +245,26 @@ void ShadowsResources::_createSWRShadowMapResources()
 			UAVDesc.Texture2DArray.MipSlice = mip;
 
 			DX::Device->CreateUnorderedAccessView(
-				_shadowMapSWR.Get(),
+				_prevFrameShadowMap.Get(),
 				nullptr,
 				&UAVDesc,
 				Descriptors::SV.GetCPUHandle(
-					CascadeMipsUAV +
+					PrevFrameShadowMapMipsUAV +
 					cascade * Settings::ShadowMapMipsCount + mip));
 
 			DX::Device->CreateUnorderedAccessView(
-				_shadowMapSWR.Get(),
+				_prevFrameShadowMap.Get(),
 				nullptr,
 				&UAVDesc,
 				Descriptors::NonSV.GetCPUHandle(
-					CascadeMipsUAV +
+					PrevFrameShadowMapMipsUAV +
 					cascade * Settings::ShadowMapMipsCount + mip));
 
 			DX::Device->CreateShaderResourceView(
-				_shadowMapSWR.Get(),
+				_prevFrameShadowMap.Get(),
 				&SRVDesc,
 				Descriptors::SV.GetCPUHandle(
-					CascadeMipsSRV +
+					PrevFrameShadowMapMipsSRV +
 					cascade * Settings::ShadowMapMipsCount + mip));
 		}
 	}
@@ -294,8 +367,97 @@ void ShadowsResources::_createPSO()
 	NAME_D3D12_OBJECT(_shadowsPSO);
 }
 
+void ShadowsResources::PreparePrevFrameShadowMap()
+{
+	D3D12_TEXTURE_COPY_LOCATION dst = {};
+	D3D12_TEXTURE_COPY_LOCATION src = {};
+
+	CD3DX12_RESOURCE_BARRIER barriers[2] = {};
+	barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(
+		_prevFrameShadowMap.Get(),
+		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+		D3D12_RESOURCE_STATE_COPY_DEST);
+	dst.pResource = _prevFrameShadowMap.Get();
+
+	if (Settings::SWREnabled)
+	{
+		barriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(
+			_shadowMapSWR.Get(),
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+			D3D12_RESOURCE_STATE_COPY_SOURCE);
+		src.pResource = _shadowMapSWR.Get();
+	}
+	else
+	{
+		barriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(
+			_shadowMapHWR.Get(),
+			D3D12_RESOURCE_STATE_DEPTH_WRITE,
+			D3D12_RESOURCE_STATE_COPY_SOURCE);
+		src.pResource = _shadowMapHWR.Get();
+	}
+	DX::CommandList->ResourceBarrier(2, barriers);
+
+	for (UINT cascade = 0; cascade < Settings::CascadesCount; cascade++)
+	{
+		dst.SubresourceIndex = D3D12CalcSubresource(
+			0,
+			cascade,
+			0,
+			Settings::ShadowMapMipsCount,
+			Settings::CascadesCount);
+		src.SubresourceIndex =
+			D3D12CalcSubresource(0, cascade, 0, 1, Settings::CascadesCount);
+
+		DX::CommandList->CopyTextureRegion(
+			&dst,
+			0,
+			0,
+			0,
+			&src,
+			nullptr);
+	}
+
+	barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(
+		_prevFrameShadowMap.Get(),
+		D3D12_RESOURCE_STATE_COPY_DEST,
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	if (Settings::SWREnabled)
+	{
+		barriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(
+			_shadowMapSWR.Get(),
+			D3D12_RESOURCE_STATE_COPY_SOURCE,
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+	}
+	else
+	{
+		barriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(
+			_shadowMapHWR.Get(),
+			D3D12_RESOURCE_STATE_COPY_SOURCE,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	}
+	DX::CommandList->ResourceBarrier(2, barriers);
+
+	for (UINT cascade = 0; cascade < Settings::CascadesCount; cascade++)
+	{
+		Utils::GenerateHiZ(
+			DX::CommandList.Get(),
+			_prevFrameShadowMap.Get(),
+			PrevFrameShadowMapMipsSRV + cascade * Settings::ShadowMapMipsCount,
+			PrevFrameShadowMapMipsUAV + cascade * Settings::ShadowMapMipsCount,
+			Settings::ShadowMapRes,
+			Settings::ShadowMapRes,
+			cascade);
+	}
+}
+
 void ShadowsResources::Update()
 {
+	memcpy(
+		_prevFrameCascadeVP,
+		_cascadeVP,
+		sizeof(XMFLOAT4X4) * Settings::MaxCascadesCount
+	);
+
 	const AABB& sceneAABB = Scene::CurrentScene->sceneAABB;
 	const Camera& camera = Scene::CurrentScene->camera;
 
@@ -349,7 +511,7 @@ void ShadowsResources::Update()
 		//		radius);
 		//}
 
-		XMFLOAT3 up = camera.GetRightVectorF();
+		XMFLOAT3 up = camera.GetRight();
 		const auto& lightDir = Scene::CurrentScene->lightDirection;
 		XMFLOAT3 look =
 		{

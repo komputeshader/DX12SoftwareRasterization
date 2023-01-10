@@ -15,10 +15,17 @@ struct CullingCB
 	UINT totalInstancesCount;
 	UINT totalMeshesCount;
 	UINT cascadesCount;
-	UINT pad0;
+	UINT frustumCullingEnabled;
+	UINT cameraHiZCullingEnabled;
+	UINT shadowsHiZCullingEnabled;
+	XMFLOAT2 depthResolution;
+	XMFLOAT2 shadowMapResolution;
+	UINT pad0[2];
 	Frustum camera;
 	Frustum cascade[Settings::MaxCascadesCount];
-	float pad1[4];
+	XMFLOAT4X4 prevFrameCameraVP;
+	XMFLOAT4X4 prevFrameCascadeVP[Settings::MaxCascadesCount];
+	float pad1[44];
 };
 static_assert(
 	(sizeof(CullingCB) % 256) == 0,
@@ -69,12 +76,31 @@ void Culler::Update()
 	cullingData.totalInstancesCount = Scene::CurrentScene->instancesCPU.size();
 	cullingData.totalMeshesCount = Scene::CurrentScene->meshesMetaCPU.size();
 	cullingData.cascadesCount = Settings::CascadesCount;
+	cullingData.frustumCullingEnabled =
+		Settings::FrustumCullingEnabled ? 1 : 0;
+	cullingData.cameraHiZCullingEnabled =
+		Settings::CameraHiZCullingEnabled ? 1 : 0;
+	cullingData.shadowsHiZCullingEnabled =
+		Settings::ShadowsHiZCullingEnabled ? 1 : 0;
+	cullingData.depthResolution =
+	{
+		static_cast<float>(Settings::BackBufferWidth),
+		static_cast<float>(Settings::BackBufferHeight)
+	};
+	cullingData.shadowMapResolution =
+	{
+		static_cast<float>(Settings::ShadowMapRes),
+		static_cast<float>(Settings::ShadowMapRes)
+	};
 	cullingData.camera = camera.GetFrustum();
+	cullingData.prevFrameCameraVP = camera.GetPrevFrameVP();
 
 	for (UINT cascade = 0; cascade < Settings::CascadesCount; cascade++)
 	{
 		cullingData.cascade[cascade] =
 			ShadowsResources::Shadows.GetCascadeFrustum(cascade);
+		cullingData.prevFrameCascadeVP[cascade] =
+			ShadowsResources::Shadows.GetPrevFrameCascadeVP(cascade);
 	}
 
 	memcpy(
@@ -158,11 +184,15 @@ void Culler::Cull(
 	commandList->SetComputeRootDescriptorTable(
 		2, Scene::CurrentScene->instancesGPU.GetSRV());
 	commandList->SetComputeRootDescriptorTable(
-		3,
+		3, Descriptors::SV.GetGPUHandle(PrevFrameDepthSRV));
+	commandList->SetComputeRootDescriptorTable(
+		4, Descriptors::SV.GetGPUHandle(PrevFrameShadowMapSRV));
+	commandList->SetComputeRootDescriptorTable(
+		5,
 		Descriptors::SV.GetGPUHandle(
 			VisibleInstancesUAV + DX::FrameIndex * PerFrameDescriptorsCount));
 	commandList->SetComputeRootDescriptorTable(
-		4, Descriptors::SV.GetGPUHandle(CullingCountersUAV));
+		6, Descriptors::SV.GetGPUHandle(CullingCountersUAV));
 	commandList->Dispatch(
 		Utils::DispatchSize(
 			Settings::CullingThreadsX,
@@ -329,9 +359,9 @@ void Culler::_createClearPSO()
 
 void Culler::_createCullingPSO()
 {
-	CD3DX12_ROOT_PARAMETER1 computeRootParameters[5] = {};
+	CD3DX12_ROOT_PARAMETER1 computeRootParameters[7] = {};
 	computeRootParameters[0].InitAsConstantBufferView(0);
-	CD3DX12_DESCRIPTOR_RANGE1 ranges[4] = {};
+	CD3DX12_DESCRIPTOR_RANGE1 ranges[6] = {};
 	ranges[0].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
@@ -345,20 +375,47 @@ void Culler::_createCullingPSO()
 		1);
 	computeRootParameters[2].InitAsDescriptorTable(1, &ranges[1]);
 	ranges[2].Init(
+		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+		1,
+		2);
+	computeRootParameters[3].InitAsDescriptorTable(1, &ranges[2]);
+	ranges[3].Init(
+		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+		Settings::MaxCascadesCount,
+		3);
+	computeRootParameters[4].InitAsDescriptorTable(1, &ranges[3]);
+	ranges[4].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
 		Settings::FrustumsCount,
 		0);
-	computeRootParameters[3].InitAsDescriptorTable(1, &ranges[2]);
-	ranges[3].Init(
+	computeRootParameters[5].InitAsDescriptorTable(1, &ranges[4]);
+	ranges[5].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
 		Settings::FrustumsCount,
 		9);
-	computeRootParameters[4].InitAsDescriptorTable(1, &ranges[3]);
+	computeRootParameters[6].InitAsDescriptorTable(1, &ranges[5]);
+
+	D3D12_STATIC_SAMPLER_DESC sampler = {};
+	sampler.Filter = D3D12_FILTER_MINIMUM_MIN_MAG_MIP_LINEAR;
+	sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	sampler.MipLODBias = 0;
+	sampler.MaxAnisotropy = 0;
+	sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+	sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_BLACK;
+	sampler.MinLOD = 0.0f;
+	sampler.MaxLOD = D3D12_FLOAT32_MAX;
+	sampler.ShaderRegister = 0;
+	sampler.RegisterSpace = 0;
+	sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
 	CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC computeRootSignatureDesc;
 	computeRootSignatureDesc.Init_1_1(
 		_countof(computeRootParameters),
-		computeRootParameters);
+		computeRootParameters,
+		1,
+		&sampler);
 
 	Utils::CreateRS(
 		computeRootSignatureDesc,

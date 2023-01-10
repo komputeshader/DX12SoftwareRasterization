@@ -26,6 +26,8 @@ public:
 	virtual void OnMouseMove(UINT x, UINT y);
 	virtual void OnRightButtonDown(UINT x, UINT y);
 
+	void PreparePrevFrameDepth(ID3D12Resource* depth);
+
 private:
 
 	void _loadAssets();
@@ -35,6 +37,7 @@ private:
 	void _createFrameResources();
 	void _createSwapChain();
 	void _createVisibleInstancesBuffer();
+	void _createDepthBufferResources();
 
 	void _initGUI();
 	void _GUINewFrame();
@@ -50,6 +53,7 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12Resource> _renderTargets[DX::FramesCount];
 	Microsoft::WRL::ComPtr<ID3D12Resource>
 		_visibleInstances[DX::FramesCount][Settings::FrustumsCount];
+	Microsoft::WRL::ComPtr<ID3D12Resource> _prevFrameDepthBuffer;
 
 	std::unique_ptr<Culler> _culler;
 	std::unique_ptr<HardwareRasterization> _HWR;

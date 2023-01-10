@@ -22,6 +22,9 @@ public:
     // 1 for main camera
     static const UINT FrustumsCount = 1 + CascadesCount;
     static bool CullingEnabled;
+    static bool FrustumCullingEnabled;
+    static bool CameraHiZCullingEnabled;
+    static bool ShadowsHiZCullingEnabled;
     static bool SWREnabled;
     static const float CameraNearZ;
     static const float CameraFarZ;

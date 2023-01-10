@@ -35,6 +35,7 @@ void ForwardRenderer::OnInit()
 	Scene::PlantScene.LoadPlant();
 	Scene::BuddhaScene.LoadBuddha();
 	_createVisibleInstancesBuffer();
+	_createDepthBufferResources();
 	_loadAssets();
 
 	_timer.Reset();
@@ -174,19 +175,167 @@ void ForwardRenderer::_createVisibleInstancesBuffer()
 	}
 }
 
+void ForwardRenderer::_createDepthBufferResources()
+{
+	D3D12_RESOURCE_DESC depthStencilDesc = {};
+	depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	depthStencilDesc.Alignment = 0;
+	depthStencilDesc.Width = _width;
+	depthStencilDesc.Height = _height;
+	depthStencilDesc.DepthOrArraySize = 1;
+	// 0 for max number of mips
+	depthStencilDesc.MipLevels = 0;
+	depthStencilDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+	depthStencilDesc.SampleDesc.Count = 1;
+	depthStencilDesc.SampleDesc.Quality = 0;
+	depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+	auto prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+	ThrowIfFailed(
+		DX::Device->CreateCommittedResource(
+			&prop,
+			D3D12_HEAP_FLAG_NONE,
+			&depthStencilDesc,
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+			nullptr,
+			IID_PPV_ARGS(&_prevFrameDepthBuffer)));
+	NAME_D3D12_OBJECT(_prevFrameDepthBuffer);
+
+	// UAV
+	D3D12_UNORDERED_ACCESS_VIEW_DESC depthUAV = {};
+	depthUAV.Format = DXGI_FORMAT_R32_UINT;
+	depthUAV.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+	depthUAV.Texture2D.PlaneSlice = 0;
+
+	// SRV
+	D3D12_SHADER_RESOURCE_VIEW_DESC depthSRV = {};
+	depthSRV.Format = DXGI_FORMAT_R32_FLOAT;
+	depthSRV.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	depthSRV.Shader4ComponentMapping =
+		D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	depthSRV.Texture2D.MipLevels = 1;
+	depthSRV.Texture2D.PlaneSlice = 0;
+	depthSRV.Texture2D.ResourceMinLODClamp = 0.0f;
+
+	for (UINT mip = 0; mip < Settings::BackBufferMipsCount; mip++)
+	{
+		depthUAV.Texture2D.MipSlice = mip;
+
+		DX::Device->CreateUnorderedAccessView(
+			_prevFrameDepthBuffer.Get(),
+			nullptr,
+			&depthUAV,
+			Descriptors::SV.GetCPUHandle(PrevFrameDepthMipsUAV + mip));
+
+		DX::Device->CreateUnorderedAccessView(
+			_prevFrameDepthBuffer.Get(),
+			nullptr,
+			&depthUAV,
+			Descriptors::NonSV.GetCPUHandle(PrevFrameDepthMipsUAV + mip));
+
+		depthSRV.Texture2D.MostDetailedMip = mip;
+
+		DX::Device->CreateShaderResourceView(
+			_prevFrameDepthBuffer.Get(),
+			&depthSRV,
+			Descriptors::SV.GetCPUHandle(PrevFrameDepthMipsSRV + mip));
+	}
+
+	depthSRV.Format = DXGI_FORMAT_R32_FLOAT;
+	depthSRV.Texture2D.MostDetailedMip = 0;
+	depthSRV.Texture2D.MipLevels = -1;
+	DX::Device->CreateShaderResourceView(
+		_prevFrameDepthBuffer.Get(),
+		&depthSRV,
+		Descriptors::SV.GetCPUHandle(PrevFrameDepthSRV));
+}
+
+void ForwardRenderer::PreparePrevFrameDepth(ID3D12Resource* depth)
+{
+	D3D12_TEXTURE_COPY_LOCATION dst = {};
+	D3D12_TEXTURE_COPY_LOCATION src = {};
+
+	CD3DX12_RESOURCE_BARRIER barriers[2] = {};
+	barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(
+		_prevFrameDepthBuffer.Get(),
+		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+		D3D12_RESOURCE_STATE_COPY_DEST);
+	dst.pResource = _prevFrameDepthBuffer.Get();
+
+	if (Settings::SWREnabled)
+	{
+		barriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(
+			depth,
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+			D3D12_RESOURCE_STATE_COPY_SOURCE);
+		src.pResource = depth;
+	}
+	else
+	{
+		barriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(
+			depth,
+			D3D12_RESOURCE_STATE_DEPTH_WRITE,
+			D3D12_RESOURCE_STATE_COPY_SOURCE);
+		src.pResource = depth;
+	}
+	DX::CommandList->ResourceBarrier(2, barriers);
+
+	dst.SubresourceIndex = 0;
+	src.SubresourceIndex = 0;
+	DX::CommandList->CopyTextureRegion(
+		&dst,
+		0,
+		0,
+		0,
+		&src,
+		nullptr);
+
+	barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(
+		_prevFrameDepthBuffer.Get(),
+		D3D12_RESOURCE_STATE_COPY_DEST,
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	if (Settings::SWREnabled)
+	{
+		barriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(
+			depth,
+			D3D12_RESOURCE_STATE_COPY_SOURCE,
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+	}
+	else
+	{
+		barriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(
+			depth,
+			D3D12_RESOURCE_STATE_COPY_SOURCE,
+			D3D12_RESOURCE_STATE_DEPTH_WRITE);
+	}
+	DX::CommandList->ResourceBarrier(2, barriers);
+
+	Utils::GenerateHiZ(
+		DX::CommandList.Get(),
+		_prevFrameDepthBuffer.Get(),
+		PrevFrameDepthMipsSRV,
+		PrevFrameDepthMipsUAV,
+		Settings::BackBufferWidth,
+		Settings::BackBufferHeight);
+}
+
 void ForwardRenderer::_loadAssets()
 {
 	Settings::Demo.AssetsPath = _assetsPath;
+	Utils::InitializeResources();
 
 	_culler = std::make_unique<decltype(_culler)::element_type>();
 
 	_HWR = std::make_unique<decltype(_HWR)::element_type>();
 	_HWR->Resize(
+		this,
 		_width,
 		_height);
 
 	_SWR = std::make_unique<decltype(_SWR)::element_type>();
 	_SWR->Resize(
+		this,
 		_width,
 		_height);
 
@@ -253,9 +402,7 @@ void ForwardRenderer::OnRender()
 	}
 	else
 	{
-		_HWR->Draw(
-			_renderTargets[DX::FrameIndex].Get(),
-			Descriptors::RT.GetCPUHandle(ForwardRendererRTV + DX::FrameIndex));
+		_HWR->Draw(_renderTargets[DX::FrameIndex].Get());
 	}
 	_stats->FinishMeasure(DX::CommandList.Get());
 	_drawGUI();
@@ -317,7 +464,7 @@ void ForwardRenderer::_beginFrameRendering()
 			DX::ComputeCommandList->Reset(
 				DX::ComputeCommandAllocators[DX::FrameIndex].Get(),
 				nullptr));
-		_profiler->BeginMeasure(DX::ComputeCommandList.Get());
+		//_profiler->BeginMeasure(DX::ComputeCommandList.Get());
 	}
 
 	_onRasterizerSwitch();
@@ -343,7 +490,7 @@ void ForwardRenderer::_finishFrameRendering()
 
 	if (Settings::CullingEnabled)
 	{
-		_profiler->FinishMeasure(DX::ComputeCommandList.Get());
+		//_profiler->FinishMeasure(DX::ComputeCommandList.Get());
 		ThrowIfFailed(DX::ComputeCommandList->Close());
 	}
 	_profiler->FinishMeasure(DX::CommandList.Get());
@@ -567,6 +714,10 @@ void ForwardRenderer::_GUINewFrame()
 	ImGui::SetNextWindowBgAlpha(Settings::GUITransparency);
 	if (ImGui::Begin("Scene Information", nullptr, window_flags))
 	{
+		ImGui::Text("%ls", DX::AdapterDesc.Description);
+
+		ImGui::Dummy(ImVec2(0.0f, 10.0f));
+
 		static int sceneIndex = Buddha;
 		if (ImGui::Combo("Scene", &sceneIndex, "Buddha\0Plant\0"))
 		{
@@ -576,11 +727,11 @@ void ForwardRenderer::_GUINewFrame()
 			}
 			else if (sceneIndex == Plant)
 			{
-				Scene::CurrentScene = &Scene::PlantScene;
+				Scene::CurrentScene = &Scene::PlantScene; 
 			}
 		}
 
-		ImGui::Dummy(ImVec2(0.0f, 20.0f));
+		ImGui::Dummy(ImVec2(0.0f, 10.0f));
 
 		ImGui::Text(
 			"Total triangles in the scene: %.3f Mil",
@@ -609,7 +760,7 @@ void ForwardRenderer::_GUINewFrame()
 			"Triangles Rendered: %.3f Mil",
 			trianglesRendered / 1'000'000.0f);
 
-		ImGui::Dummy(ImVec2(0.0f, 20.0f));
+		ImGui::Dummy(ImVec2(0.0f, 10.0f));
 
 		ImGui::Text(
 			"PS Invocations: %.3f Mil",
@@ -619,7 +770,7 @@ void ForwardRenderer::_GUINewFrame()
 			"CS Invocations: %.3f Mil",
 			stats.CSInvocations / 1'000'000.0f);
 
-		ImGui::Dummy(ImVec2(0.0f, 20.0f));
+		ImGui::Dummy(ImVec2(0.0f, 10.0f));
 
 		ImGui::Text(
 			"Current DX12 GPU Memory Usage: %.1f GB / %.1f GB",
@@ -631,13 +782,13 @@ void ForwardRenderer::_GUINewFrame()
 			_CPUMemoryInfo.CurrentUsage / 1'000'000'000.0f,
 			_CPUMemoryInfo.Budget / 1'000'000'000.0f);
 
-		ImGui::Dummy(ImVec2(0.0f, 20.0f));
+		ImGui::Dummy(ImVec2(0.0f, 10.0f));
 
 		ImGui::Text(
 			"Frame Time: %.1f ms",
 			_profiler->GetTimeMS(DX::CommandQueue.Get()));
 
-		ImGui::Dummy(ImVec2(0.0f, 20.0f));
+		ImGui::Dummy(ImVec2(0.0f, 10.0f));
 
 		if (ImGui::Checkbox("Software Rasterization", &Settings::SWREnabled))
 		{
@@ -651,7 +802,28 @@ void ForwardRenderer::_GUINewFrame()
 			}
 		}
 
-		ImGui::Checkbox("Enable Culling", &Settings::CullingEnabled);
+		ImGui::Checkbox(
+			"Enable Frustum Culling",
+			&Settings::FrustumCullingEnabled);
+
+		ImGui::Checkbox(
+			"Enable Camera Hi-Z Culling",
+			&Settings::CameraHiZCullingEnabled);
+
+		ImGui::Checkbox(
+			"Enable Shadows Hi-Z Culling",
+			&Settings::ShadowsHiZCullingEnabled);
+
+		if (!Settings::FrustumCullingEnabled
+			&& !Settings::CameraHiZCullingEnabled
+			&& !Settings::ShadowsHiZCullingEnabled)
+		{
+			Settings::CullingEnabled = false;
+		}
+		else
+		{
+			Settings::CullingEnabled = true;
+		}
 	}
 	ImGui::End();
 }

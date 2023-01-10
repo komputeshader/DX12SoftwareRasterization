@@ -116,17 +116,17 @@ void Scene::LoadBuddha()
 	XMStoreFloat3(&sceneAABB.center, (sceneMin + sceneMax) * 0.5f);
 	XMStoreFloat3(&sceneAABB.extents, (sceneMax - sceneMin) * 0.5f);
 
-	camera.LookAt(
-		XMVectorSet(-30.0f, 100.0f, -30.0f, 0.0f),
-		XMVectorSet(100.0f, 0.0f, 100.0f, 0.0f),
-		XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)
-	);
-
 	camera.SetProjection(
 		XMConvertToRadians(FOV),
 		Settings::BackBufferAspectRatio,
 		nearZ,
 		farZ);
+
+	camera.LookAt(
+		XMVectorSet(-30.0f, 100.0f, -30.0f, 0.0f),
+		XMVectorSet(100.0f, 0.0f, 100.0f, 0.0f),
+		XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)
+	);
 
 	lightDirection = { -1.0f, 1.0f, -1.0f };
 
@@ -163,17 +163,17 @@ void Scene::LoadPlant()
 	XMStoreFloat3(&sceneAABB.center, (sceneMin + sceneMax) * 0.5f);
 	XMStoreFloat3(&sceneAABB.extents, (sceneMax - sceneMin) * 0.5f);
 
-	camera.LookAt(
-		XMVectorSet(-1000.0f, 500.0f, 600.0f, 0.0f),
-		XMVectorSet(-999.0f, 500.0f, 600.0f, 0.0f),
-		XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)
-	);
-
 	camera.SetProjection(
 		XMConvertToRadians(FOV),
 		Settings::BackBufferAspectRatio,
 		nearZ,
 		farZ);
+
+	camera.LookAt(
+		XMVectorSet(-1000.0f, 500.0f, 600.0f, 0.0f),
+		XMVectorSet(-999.0f, 500.0f, 600.0f, 0.0f),
+		XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)
+	);
 
 	lightDirection = { 1.0f, 1.0f, 1.0f };
 
