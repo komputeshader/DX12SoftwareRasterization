@@ -8,6 +8,7 @@ namespace Utils
 
 extern Microsoft::WRL::ComPtr<ID3D12RootSignature> HiZRS;
 extern Microsoft::WRL::ComPtr<ID3D12PipelineState> HiZPSO;
+extern D3D12_STATIC_SAMPLER_DESC HiZSamplerDesc;
 
 void InitializeResources();
 

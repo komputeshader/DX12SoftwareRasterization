@@ -11,6 +11,7 @@ namespace Utils
 
 ComPtr<ID3D12RootSignature> HiZRS;
 ComPtr<ID3D12PipelineState> HiZPSO;
+D3D12_STATIC_SAMPLER_DESC HiZSamplerDesc;
 
 void InitializeResources()
 {
@@ -70,6 +71,20 @@ void InitializeResources()
 			&psoDesc,
 			IID_PPV_ARGS(&HiZPSO)));
 	NAME_D3D12_OBJECT(HiZPSO);
+
+	HiZSamplerDesc.Filter = D3D12_FILTER_MINIMUM_MIN_MAG_MIP_LINEAR;
+	HiZSamplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	HiZSamplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	HiZSamplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	HiZSamplerDesc.MipLODBias = 0;
+	HiZSamplerDesc.MaxAnisotropy = 0;
+	HiZSamplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+	HiZSamplerDesc.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_BLACK;
+	HiZSamplerDesc.MinLOD = 0.0f;
+	HiZSamplerDesc.MaxLOD = D3D12_FLOAT32_MAX;
+	HiZSamplerDesc.ShaderRegister = 0;
+	HiZSamplerDesc.RegisterSpace = 0;
+	HiZSamplerDesc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 }
 
 AABB MergeAABBs(const AABB& a, const AABB& b)
