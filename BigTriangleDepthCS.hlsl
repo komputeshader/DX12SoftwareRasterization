@@ -132,18 +132,9 @@ void main(
 			uint yOffset = groupThreadID.y + yTiles * SWRBigTriangleThreadsY;
 
 			// E(x + a, y + b) = E(x, y) - a * dy + b * dx
-			float area0 =
-				Area0 -
-				xOffset * Dxdy0.y +
-				yOffset * Dxdy0.x;
-			float area1 =
-				Area1 -
-				xOffset * Dxdy1.y +
-				yOffset * Dxdy1.x;
-			float area2 =
-				Area2 -
-				xOffset * Dxdy2.y +
-				yOffset * Dxdy2.x;
+			float area0 = Area0 - xOffset * Dxdy0.y + yOffset * Dxdy0.x;
+			float area1 = Area1 - xOffset * Dxdy1.y + yOffset * Dxdy1.x;
+			float area2 = Area2 - xOffset * Dxdy2.y + yOffset * Dxdy2.x;
 			// edge tests, "frustum culling" for 3 lines in 2D
 			[branch]
 			if (area0 >= 0.0 && area1 >= 0.0 && area2 >= 0.0)

@@ -252,7 +252,8 @@ void HardwareRasterization::_drawDepth()
 	DX::CommandList->SetGraphicsRootDescriptorTable(
 		2,
 		Settings::CullingEnabled
-		? Descriptors::SV.GetGPUHandle(VisibleInstancesSRV + DX::FrameIndex * PerFrameDescriptorsCount)
+		? Descriptors::SV.GetGPUHandle(VisibleInstancesSRV +
+			DX::FrameIndex * PerFrameDescriptorsCount)
 		: Scene::CurrentScene->instancesGPU.GetSRV());
 	DX::CommandList->IASetVertexBuffers(
 		0,
