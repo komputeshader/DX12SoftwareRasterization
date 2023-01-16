@@ -66,9 +66,7 @@ void main(
 	uint v0Idx, v1Idx, v2Idx;
 	GetTriangleIndices(
 		StartIndexLocation + dispatchThreadID.x * 3,
-		v0Idx,
-		v1Idx,
-		v2Idx);
+		v0Idx, v1Idx, v2Idx);
 
 	float3 v0P, v1P, v2P;
 	GetTriangleVertexPositions(

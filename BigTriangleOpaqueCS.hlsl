@@ -83,9 +83,7 @@ void main(
 		uint v0Idx, v1Idx, v2Idx;
 		GetTriangleIndices(
 			t.triangleIndex,
-			v0Idx,
-			v1Idx,
-			v2Idx);
+			v0Idx, v1Idx, v2Idx);
 
 		GetTriangleVertexPositions(
 			v0Idx, v1Idx, v2Idx,

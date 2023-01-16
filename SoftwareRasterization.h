@@ -60,14 +60,18 @@ private:
 	void _createBigTrianglesMDIResources();
 	void _createCullingMDIResources();
 	void _createResetBuffer();
-	void _clearBigTrianglesCounter();
-	void _createBigTrianglesDispatch();
+	void _clearBigTrianglesCounter(UINT frustum);
+	void _createBigTrianglesDispatch(UINT frustum);
+	void _createBigTrianglesDispatches();
 	void _createStatsResources();
 	void _clearStatistics();
 
 	void _beginFrame();
 	void _drawDepth();
+	void _drawDepthBigTriangles();
 	void _drawShadows();
+	void _drawShadowsBigTriangles();
+	void _finishDepthsRendering();
 	void _drawOpaque();
 	void _endFrame();
 
@@ -82,6 +86,7 @@ private:
 	void _createBigTriangleDepthPSO();
 	void _createTriangleOpaquePSO();
 	void _createBigTriangleOpaquePSO();
+	void _createBigTrianglesBuffers();
 
 	// need these two for UAV writes
 	Microsoft::WRL::ComPtr<ID3D12Resource> _renderTarget;
@@ -95,7 +100,8 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> _triangleOpaquePSO;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> _bigTriangleOpaqueRS;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> _bigTriangleOpaquePSO;
-	Microsoft::WRL::ComPtr<ID3D12Resource> _bigTriangles;
+	Microsoft::WRL::ComPtr<ID3D12Resource>
+		_bigTriangles[Settings::FrustumsCount];
 	Microsoft::WRL::ComPtr<ID3D12Resource> _depthSceneCB;
 	UINT8* _depthSceneCBData;
 	UINT _depthSceneCBFrameSize = 0;
@@ -110,13 +116,15 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12CommandSignature> _triangleDepthCS;
 	Microsoft::WRL::ComPtr<ID3D12CommandSignature> _triangleOpaqueCS;
 	Microsoft::WRL::ComPtr<ID3D12CommandSignature> _bigTrianglesCS;
-	Microsoft::WRL::ComPtr<ID3D12Resource> _bigTrianglesDispatch;
-	Microsoft::WRL::ComPtr<ID3D12Resource> _bigTrianglesDispatchUpload;
+	Microsoft::WRL::ComPtr<ID3D12Resource>
+		_bigTrianglesDispatch[Settings::FrustumsCount];
+	Microsoft::WRL::ComPtr<ID3D12Resource>
+		_bigTrianglesDispatchUpload[Settings::FrustumsCount];
 	Microsoft::WRL::ComPtr<ID3D12Resource> _counterReset;
 	Microsoft::WRL::ComPtr<ID3D12Resource>
 		_culledCommands[DX::FramesCount][Settings::FrustumsCount];
 	UINT _culledCommandsCounterOffset = 0;
-	UINT _bigTrianglesCounterOffset = 0;
+	UINT _bigTrianglesCounterOffset[Settings::FrustumsCount];
 
 	// statistics resources
 	enum StatsIndices

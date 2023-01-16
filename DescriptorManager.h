@@ -34,8 +34,8 @@ enum CBVSRVUAVIndices
 		Settings::CascadesCount * Settings::ShadowMapMipsCount,
 	BigTrianglesSRV = PrevFrameShadowMapMipsUAV +
 		Settings::CascadesCount * Settings::ShadowMapMipsCount,
-	BigTrianglesUAV,
-	SWRStatsUAV,
+	BigTrianglesUAV = BigTrianglesSRV + Settings::FrustumsCount,
+	SWRStatsUAV = BigTrianglesUAV + Settings::FrustumsCount,
 
 	SingleDescriptorsCount,
 
