@@ -232,7 +232,6 @@ void CreateCommandQueues()
 	NAME_D3D12_OBJECT(ComputeCommandQueue);
 }
 
-
 void CreateSyncObjects()
 {
 	ThrowIfFailed(
