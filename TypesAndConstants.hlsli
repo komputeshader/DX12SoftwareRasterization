@@ -111,7 +111,7 @@ struct BigTriangle
 	uint instanceIndex;
 	int baseVertexLocation;
 
-	uint pad;
+	float tileOffset;
 };
 
 #endif // TYPES_AND_CONSTANTS_HLSL

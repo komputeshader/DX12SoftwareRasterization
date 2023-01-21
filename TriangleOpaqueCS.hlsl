@@ -13,8 +13,9 @@ cbuffer SceneCB : register(b0)
 	float2 OutputRes;
 	float2 InvOutputRes;
 	float BigTriangleThreshold;
+	float BigTriangleTileSize;
 	uint ShowCascades;
-	uint2 pad;
+	uint pad;
 	float4 CascadeBias[MaxCascadesCount / 4];
 	float4 CascadeSplits[MaxCascadesCount / 4];
 };
@@ -168,9 +169,15 @@ void main(
 		result.triangleIndex = StartIndexLocation + dispatchThreadID.x * 3;
 		result.instanceIndex = instanceIndex;
 		result.baseVertexLocation = BaseVertexLocation;
-		result.pad = 0.0;
 
-		BigTriangles.Append(result);
+		float2 tilesCount = ceil(dimensions / BigTriangleTileSize);
+		float totalTiles = tilesCount.x * tilesCount.y;
+		for (float offset = 0.0; offset < totalTiles; offset += 1.0)
+		{
+			result.tileOffset = offset;
+
+			BigTriangles.Append(result);
+		}
 
 		return;
 	}

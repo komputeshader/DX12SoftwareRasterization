@@ -10,6 +10,7 @@ cbuffer DepthSceneCB : register(b0)
 	float2 OutputRes;
 	float2 InvOutputRes;
 	float BigTriangleThreshold;
+	float BigTriangleTileSize;
 };
 
 cbuffer ConstantBuffer : register(b1)
@@ -149,6 +150,9 @@ void main(
 	// not precise, though, since it still could miss any pixel centers
 	InterlockedAdd(Statistics[1], 1);
 
+	// thin triangles area vs box area
+	// thread local
+
 	[branch]
 	if (dimensions.x * dimensions.y >= BigTriangleThreshold)
 	{
@@ -156,9 +160,15 @@ void main(
 		result.triangleIndex = StartIndexLocation + dispatchThreadID.x * 3;
 		result.instanceIndex = instanceIndex;
 		result.baseVertexLocation = BaseVertexLocation;
-		result.pad = 0.0;
 
-		BigTriangles.Append(result);
+		float2 tilesCount = ceil(dimensions / BigTriangleTileSize);
+		float totalTiles = tilesCount.x * tilesCount.y;
+		for (float offset = 0.0; offset < totalTiles; offset += 1.0)
+		{
+			result.tileOffset = offset;
+
+			BigTriangles.Append(result);
+		}
 
 		return;
 	}

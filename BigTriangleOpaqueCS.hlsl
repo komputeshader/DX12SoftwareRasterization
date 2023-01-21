@@ -9,8 +9,9 @@ cbuffer SceneCB : register(b0)
 	float2 OutputRes;
 	float2 InvOutputRes;
 	float BigTriangleThreshold;
+	float BigTriangleTileSize;
 	uint ShowCascades;
-	uint2 pad;
+	uint pad;
 	float4 CascadeBias[MaxCascadesCount / 4];
 	float4 CascadeSplits[MaxCascadesCount / 4];
 };
@@ -120,8 +121,13 @@ void main(
 			float3(p2SS.xy, z2NDC));
 
 		ClampToScreenBounds(minP.xy, maxP.xy);
-		MinP = SnapMinBoundToPixelCenter(minP.xy);
-		MaxP = maxP.xy;
+		minP.xy = SnapMinBoundToPixelCenter(minP.xy);
+		float2 dimensions = maxP.xy - minP.xy;
+		float2 tileCount = ceil(dimensions / BigTriangleTileSize);
+		float yTileOffset = floor(t.tileOffset / tileCount.x);
+		float xTileOffset = t.tileOffset - yTileOffset * tileCount.x;
+		MinP = minP.xy + float2(xTileOffset, yTileOffset) * BigTriangleTileSize;
+		MaxP = min(maxP.xy, MinP + BigTriangleTileSize.xx);
 
 		GetTriangleVertexNormals(
 			v0Idx, v1Idx, v2Idx,
@@ -152,8 +158,6 @@ void main(
 	}
 
 	GroupMemoryBarrierWithGroupSync();
-
-	float2 dimensions = MaxP - MinP;
 
 	uint yTiles = 0;
 	for (float y = MinP.y + groupThreadID.y;

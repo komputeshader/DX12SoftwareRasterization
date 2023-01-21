@@ -12,7 +12,8 @@ struct SWRDepthSceneCB
 	XMFLOAT2 outputRes;
 	XMFLOAT2 invOutputRes;
 	float bigTriangleThreshold;
-	float pad[43];
+	float bigTriangleTileSize;
+	float pad[42];
 };
 static_assert(
 	(sizeof(SWRDepthSceneCB) % 256) == 0,
@@ -27,8 +28,9 @@ struct SWRSceneCB
 	XMFLOAT2 outputRes;
 	XMFLOAT2 invOutputRes;
 	float bigTriangleThreshold;
+	float bigTriangleTileSize;
 	UINT showCascades;
-	UINT pad0[2];
+	UINT pad0[1];
 	float cascadeBias[Settings::MaxCascadesCount];
 	float cascadeSplits[Settings::MaxCascadesCount];
 	UINT pad1[20];
@@ -52,7 +54,7 @@ struct BigTriangle
 	UINT instanceIndex;
 	INT baseVertexLocation;
 
-	UINT pad;
+	float tileOffset;
 };
 
 struct BigTrianglesCommand
@@ -353,6 +355,7 @@ void SoftwareRasterization::Update()
 		1.0f / depthData.outputRes.y
 	};
 	depthData.bigTriangleThreshold = static_cast<float>(_bigTriangleThreshold);
+	depthData.bigTriangleTileSize = static_cast<float>(_bigTriangleTileSize);
 	memcpy(
 		_depthSceneCBData + DX::FrameIndex * _depthSceneCBFrameSize,
 		&depthData,
@@ -398,6 +401,7 @@ void SoftwareRasterization::Update()
 	};
 	sceneData.cascadesCount = Settings::CascadesCount;
 	sceneData.bigTriangleThreshold = static_cast<float>(_bigTriangleThreshold);
+	sceneData.bigTriangleTileSize = static_cast<float>(_bigTriangleTileSize);
 	sceneData.showCascades = ShadowsResources::Shadows.ShowCascades() ? 1 : 0;
 	for (UINT cascade = 0; cascade < Settings::CascadesCount; cascade++)
 	{
@@ -1057,6 +1061,14 @@ void SoftwareRasterization::GUINewFrame()
 			&_bigTriangleThreshold,
 			1,
 			1'000,
+			"%i",
+			ImGuiSliderFlags_AlwaysClamp);
+
+		ImGui::SliderInt(
+			"Big Triangle Tile Size",
+			&_bigTriangleTileSize,
+			64,
+			2048,
 			"%i",
 			ImGuiSliderFlags_AlwaysClamp);
 	}

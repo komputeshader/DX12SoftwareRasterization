@@ -4,6 +4,9 @@ cbuffer DepthSceneCB : register(b0)
 {
 	float4x4 VP;
 	float2 OutputRes;
+	float2 InvOutputRes;
+	float BigTriangleThreshold;
+	float BigTriangleTileSize;
 };
 
 StructuredBuffer<VertexPosition> Positions : register(t0);
@@ -93,8 +96,13 @@ void main(
 			float3(p2SS.xy, z2NDC));
 
 		ClampToScreenBounds(minP.xy, maxP.xy);
-		MinP = SnapMinBoundToPixelCenter(minP.xy);
-		MaxP = maxP.xy;
+		minP.xy = SnapMinBoundToPixelCenter(minP.xy);
+		float2 dimensions = maxP.xy - minP.xy;
+		float2 tileCount = ceil(dimensions / BigTriangleTileSize);
+		float yTileOffset = floor(t.tileOffset / tileCount.x);
+		float xTileOffset = t.tileOffset - yTileOffset * tileCount.x;
+		MinP = minP.xy + float2(xTileOffset, yTileOffset) * BigTriangleTileSize;
+		MaxP = min(maxP.xy, MinP + BigTriangleTileSize.xx);
 
 		P0SS = p0SS;
 		P1SS = p1SS;
@@ -113,8 +121,6 @@ void main(
 	}
 
 	GroupMemoryBarrierWithGroupSync();
-
-	float2 dimensions = MaxP - MinP;
 
 	uint yTiles = 0;
 	for (float y = MinP.y + groupThreadID.y;
