@@ -222,26 +222,6 @@ void Scene::_loadObj(
 		return;
 	}
 
-	//tinyobj::ObjReaderConfig reader_config;
-	//// Path to material files
-	//reader_config.mtl_search_path = mtlSearchPath;
-	//
-	//tinyobj::ObjReader reader;
-	//
-	//if (!reader.ParseFromFile(OBJPath, reader_config))
-	//{
-	//	if (!reader.Error().empty())
-	//	{
-	//		std::cerr << "TinyObjReader: " << reader.Error();
-	//	}
-	//	exit(1);
-	//}
-	//
-	//if (!reader.Warning().empty())
-	//{
-	//	std::cout << "TinyObjReader: " << reader.Warning();
-	//}
-
 	auto& attrib = result.attributes;
 	auto& shapes = result.shapes;
 	auto& materials = result.materials;
@@ -252,6 +232,27 @@ void Scene::_loadObj(
 
 	std::unordered_map<Vertex, UINT> uniqueVertices;
 	UINT64 facesCount = 0;
+	UINT64 vertexCount = 0;
+	for (size_t s = 0; s < shapes.size(); s++)
+	{
+		for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++)
+		{
+			facesCount++;
+
+			size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
+			for (size_t v = 0; v < fv; v++)
+			{
+				vertexCount++;
+			}
+		}
+	}
+
+	// upper bound, not accounting for unique vetices
+	positionsCPU.reserve(vertexCount);
+	normalsCPU.reserve(vertexCount);
+	colorsCPU.reserve(vertexCount);
+	texcoordsCPU.reserve(vertexCount);
+	indicesCPU.reserve(vertexCount);
 
 	for (size_t s = 0; s < shapes.size(); s++)
 	{
@@ -267,8 +268,6 @@ void Scene::_loadObj(
 		size_t index_offset = 0;
 		for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++)
 		{
-			facesCount++;
-
 			size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
 			size_t fm = shapes[s].mesh.material_ids[f];
 			XMFLOAT3 faceDiffuse;
@@ -416,6 +415,12 @@ void Scene::_loadObj(
 			}
 		}
 	}
+
+	positionsCPU.shrink_to_fit();
+	normalsCPU.shrink_to_fit();
+	colorsCPU.shrink_to_fit();
+	texcoordsCPU.shrink_to_fit();
+	indicesCPU.shrink_to_fit();
 }
 
 void Scene::_createVBResources(ScenesIndices sceneIndex)
