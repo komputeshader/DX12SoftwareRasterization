@@ -469,7 +469,7 @@ void ShadowsResources::Update()
 	}
 
 	float frustumLookDistance = camera.GetFarZ() - camera.GetNearZ();
-	float shadowDistance = min(_shadowDistance, frustumLookDistance);
+	float shadowDistance = std::min(_shadowDistance, frustumLookDistance);
 	// now in [0,1]
 	float shadowDistanceNorm = shadowDistance / frustumLookDistance;
 

@@ -319,7 +319,7 @@ UINT MipsCount(UINT width, UINT height)
 {
 	return
 		static_cast<UINT>(floorf(log2f(static_cast<float>(
-			max(width, height))))) + 1;
+			std::max(width, height))))) + 1;
 }
 
 void GenerateHiZ(
@@ -342,8 +342,8 @@ void GenerateHiZ(
 	UINT outputHeight;
 	for (UINT mip = 1; mip < mipsCount; mip++)
 	{
-		outputWidth = max(inputWidth >> 1, 1);
-		outputHeight = max(inputHeight >> 1, 1);
+		outputWidth = std::max(inputWidth >> 1, 1u);
+		outputHeight = std::max(inputHeight >> 1, 1u);
 
 		float NPOTX = (inputWidth % 2)
 			? 1.0f - 1.0f / static_cast<float>(inputWidth)

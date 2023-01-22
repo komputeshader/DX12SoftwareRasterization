@@ -141,5 +141,5 @@ private:
 	// how much screen space area should triangle's AABB occupy
 	// to be considered "big"
 	INT _bigTriangleThreshold = 64;
-	INT _bigTriangleTileSize = 256;
+	INT _bigTriangleTileSize = 128;
 };

@@ -6,10 +6,7 @@
 #include <iostream>
 #include <unordered_map>
 
-#define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
-// Optional. define TINYOBJLOADER_USE_MAPBOX_EARCUT gives robust trinagulation. Requires C++11
-//#define TINYOBJLOADER_USE_MAPBOX_EARCUT
-#include "tiny_obj_loader.h"
+#include "rapidobj.hpp"
 
 Scene* Scene::CurrentScene;
 Scene Scene::PlantScene;
@@ -143,13 +140,13 @@ void Scene::LoadBuddha()
 	_createMeshMetaResources(Buddha);
 	_createInstancesBufferResources(Buddha);
 
-	MaxSceneFacesCount = max(
+	MaxSceneFacesCount = std::max(
 		MaxSceneFacesCount,
 		totalFacesCount);
-	MaxSceneInstancesCount = max(
+	MaxSceneInstancesCount = std::max(
 		MaxSceneInstancesCount,
 		instancesCPU.size());
-	MaxSceneMeshesMetaCount = max(
+	MaxSceneMeshesMetaCount = std::max(
 		MaxSceneMeshesMetaCount,
 		meshesMetaCPU.size());
 }
@@ -190,13 +187,13 @@ void Scene::LoadPlant()
 	_createMeshMetaResources(Plant);
 	_createInstancesBufferResources(Plant);
 
-	MaxSceneFacesCount = max(
+	MaxSceneFacesCount = std::max(
 		MaxSceneFacesCount,
 		totalFacesCount);
-	MaxSceneInstancesCount = max(
+	MaxSceneInstancesCount = std::max(
 		MaxSceneInstancesCount,
 		instancesCPU.size());
-	MaxSceneMeshesMetaCount = max(
+	MaxSceneMeshesMetaCount = std::max(
 		MaxSceneMeshesMetaCount,
 		meshesMetaCPU.size());
 }
@@ -209,29 +206,45 @@ void Scene::_loadObj(
 	UINT instancesCountX,
 	UINT instancesCountZ)
 {
-	tinyobj::ObjReaderConfig reader_config;
-	// Path to material files
-	reader_config.mtl_search_path = mtlSearchPath;
+	rapidobj::Result result = rapidobj::ParseFile(OBJPath);
 
-	tinyobj::ObjReader reader;
-
-	if (!reader.ParseFromFile(OBJPath, reader_config))
+	if (result.error)
 	{
-		if (!reader.Error().empty())
-		{
-			std::cerr << "TinyObjReader: " << reader.Error();
-		}
-		exit(1);
+		std::cout << result.error.code.message() << '\n';
+		return;
 	}
 
-	if (!reader.Warning().empty())
+	bool success = Triangulate(result);
+
+	if (!success)
 	{
-		std::cout << "TinyObjReader: " << reader.Warning();
+		std::cout << result.error.code.message() << '\n';
+		return;
 	}
 
-	auto& attrib = reader.GetAttrib();
-	auto& shapes = reader.GetShapes();
-	auto& materials = reader.GetMaterials();
+	//tinyobj::ObjReaderConfig reader_config;
+	//// Path to material files
+	//reader_config.mtl_search_path = mtlSearchPath;
+	//
+	//tinyobj::ObjReader reader;
+	//
+	//if (!reader.ParseFromFile(OBJPath, reader_config))
+	//{
+	//	if (!reader.Error().empty())
+	//	{
+	//		std::cerr << "TinyObjReader: " << reader.Error();
+	//	}
+	//	exit(1);
+	//}
+	//
+	//if (!reader.Warning().empty())
+	//{
+	//	std::cout << "TinyObjReader: " << reader.Warning();
+	//}
+
+	auto& attrib = result.attributes;
+	auto& shapes = result.shapes;
+	auto& materials = result.materials;
 
 	std::vector<MeshMeta> meshesMeta;
 	XMVECTOR objectMin = g_XMFltMax.v;
@@ -274,11 +287,11 @@ void Scene::_loadObj(
 				Vertex tmpVertex = {};
 
 				// access to vertex
-				tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+				auto idx = shapes[s].mesh.indices[index_offset + v];
 				tmpVertex.position.position = {
-					attrib.vertices[3 * size_t(idx.vertex_index) + 0],
-					attrib.vertices[3 * size_t(idx.vertex_index) + 1],
-					attrib.vertices[3 * size_t(idx.vertex_index) + 2]
+					attrib.positions[3 * size_t(idx.position_index) + 0],
+					attrib.positions[3 * size_t(idx.position_index) + 1],
+					attrib.positions[3 * size_t(idx.position_index) + 2]
 				};
 
 				tmpVertex.position.position.x *= scale;

@@ -160,12 +160,14 @@ void main(
 	GroupMemoryBarrierWithGroupSync();
 
 	uint yTiles = 0;
-	for (float y = MinP.y + groupThreadID.y;
+	for (
+		float y = MinP.y + groupThreadID.y;
 		y <= MaxP.y;
 		y += SWRBigTriangleThreadsY, yTiles++)
 	{
 		uint xTiles = 0;
-		for (float x = MinP.x + groupThreadID.x;
+		for (
+			float x = MinP.x + groupThreadID.x;
 			x <= MaxP.x;
 			x += SWRBigTriangleThreadsX, xTiles++)
 		{
