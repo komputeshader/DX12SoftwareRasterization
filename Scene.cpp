@@ -253,6 +253,7 @@ void Scene::_loadObj(
 	colorsCPU.reserve(vertexCount);
 	texcoordsCPU.reserve(vertexCount);
 	indicesCPU.reserve(vertexCount);
+	uniqueVertices.reserve(vertexCount);
 
 	for (size_t s = 0; s < shapes.size(); s++)
 	{
