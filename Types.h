@@ -24,55 +24,24 @@ struct VertexPosition
 {
 	DirectX::XMFLOAT3 position;
 	float pad;
-
-	bool operator==(const VertexPosition& other) const
-	{
-		return
-			position.x == other.position.x &&
-			position.y == other.position.y &&
-			position.z == other.position.z;
-	}
 };
 
 struct VertexNormal
 {
 	DirectX::XMFLOAT3 normal;
 	float pad;
-
-	bool operator==(const VertexNormal& other) const
-	{
-		return
-			normal.x == other.normal.x &&
-			normal.y == other.normal.y &&
-			normal.z == other.normal.z;
-	}
 };
 
 struct VertexColor
 {
 	DirectX::XMFLOAT3 color;
 	float pad;
-
-	bool operator==(const VertexColor& other) const
-	{
-		return
-			color.x == other.color.x &&
-			color.y == other.color.y &&
-			color.z == other.color.z;
-	}
 };
 
 struct VertexUV
 {
 	DirectX::XMFLOAT2 uv;
 	DirectX::XMFLOAT2 pad;
-
-	bool operator==(const VertexUV& other) const
-	{
-		return
-			uv.x == other.uv.x &&
-			uv.y == other.uv.y;
-	}
 };
 
 class AABB

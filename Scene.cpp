@@ -7,6 +7,7 @@
 #include <unordered_map>
 
 #include "rapidobj.hpp"
+#include "meshoptimizer/meshoptimizer.h"
 
 Scene* Scene::CurrentScene;
 Scene Scene::PlantScene;
@@ -16,93 +17,6 @@ UINT64 Scene::MaxSceneInstancesCount = 0;
 UINT64 Scene::MaxSceneMeshesMetaCount = 0;
 
 using namespace DirectX;
-
-// taken from glm/gtx/hash.inl
-void HashCombine(size_t& seed, size_t hash)
-{
-	hash += 0x9e3779b9 + (seed << 6) + (seed >> 2);
-	seed ^= hash;
-}
-
-struct Vertex
-{
-	VertexPosition position;
-	VertexNormal normal;
-	VertexColor color;
-	VertexUV uv;
-
-	bool operator==(const Vertex& other) const
-	{
-		return
-			position == other.position &&
-			normal == other.normal &&
-			color == other.color &&
-			uv == other.uv;
-	}
-};
-
-namespace std
-{
-	template<> struct hash<DirectX::XMFLOAT2>
-	{
-		size_t operator()(const DirectX::XMFLOAT2& v) const
-		{
-			size_t seed = 0;
-			hash<float> hasher;
-			HashCombine(seed, hasher(v.x));
-			HashCombine(seed, hasher(v.y));
-			return seed;
-		}
-	};
-
-	template<> struct hash<DirectX::XMFLOAT3>
-	{
-		size_t operator()(const DirectX::XMFLOAT3& v) const
-		{
-			size_t seed = 0;
-			hash<float> hasher;
-			HashCombine(seed, hasher(v.x));
-			HashCombine(seed, hasher(v.y));
-			HashCombine(seed, hasher(v.z));
-			return seed;
-		}
-	};
-
-	template<> struct hash<DirectX::XMFLOAT4>
-	{
-		size_t operator()(const DirectX::XMFLOAT4& v) const
-		{
-			size_t seed = 0;
-			hash<float> hasher;
-			HashCombine(seed, hasher(v.x));
-			HashCombine(seed, hasher(v.y));
-			HashCombine(seed, hasher(v.z));
-			HashCombine(seed, hasher(v.w));
-			return seed;
-		}
-	};
-
-	template<> struct hash<Vertex>
-	{
-		size_t operator()(const Vertex& vertex) const
-		{
-			size_t seed = 0;
-			HashCombine(
-				seed,
-				hash<DirectX::XMFLOAT3>()(vertex.position.position));
-			HashCombine(
-				seed,
-				hash<DirectX::XMFLOAT3>()(vertex.normal.normal));
-			HashCombine(
-				seed,
-				hash<DirectX::XMFLOAT3>()(vertex.color.color));
-			HashCombine(
-				seed,
-				hash<DirectX::XMFLOAT2>()(vertex.uv.uv));
-			return seed;
-		}
-	};
-}
 
 void Scene::LoadBuddha()
 {
@@ -230,44 +144,31 @@ void Scene::_loadObj(
 	XMVECTOR objectMin = g_XMFltMax.v;
 	XMVECTOR objectMax = -g_XMFltMax.v;
 
-	std::unordered_map<Vertex, UINT> uniqueVertices;
 	UINT64 facesCount = 0;
-	UINT64 vertexCount = 0;
 	for (size_t s = 0; s < shapes.size(); s++)
 	{
-		for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++)
-		{
-			facesCount++;
+		UINT64 currentShapeFacesCount = shapes[s].mesh.num_face_vertices.size();
+		facesCount += currentShapeFacesCount;
 
-			size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
-			for (size_t v = 0; v < fv; v++)
-			{
-				vertexCount++;
-			}
-		}
-	}
+		std::vector<VertexPosition> unindexedPositions;
+		unindexedPositions.reserve(currentShapeFacesCount * 3);
+		std::vector<VertexNormal> unindexedNormals;
+		unindexedNormals.reserve(currentShapeFacesCount * 3);
+		std::vector<VertexColor> unindexedColors;
+		unindexedColors.reserve(currentShapeFacesCount * 3);
+		std::vector<VertexUV> unindexedUVs;
+		unindexedUVs.reserve(currentShapeFacesCount * 3);
 
-	// upper bound, not accounting for unique vetices
-	positionsCPU.reserve(vertexCount);
-	normalsCPU.reserve(vertexCount);
-	colorsCPU.reserve(vertexCount);
-	texcoordsCPU.reserve(vertexCount);
-	indicesCPU.reserve(vertexCount);
-	uniqueVertices.reserve(vertexCount);
-
-	for (size_t s = 0; s < shapes.size(); s++)
-	{
 		MeshMeta mesh{};
 		mesh.startIndexLocation = indicesCPU.size();
-		mesh.baseVertexLocation = 0;//vertices.size();
-		mesh.indexCountPerInstance = indicesCPU.size();
+		mesh.baseVertexLocation = positionsCPU.size();
 
 		XMVECTOR min = g_XMFltMax.v;
 		XMVECTOR max = -g_XMFltMax.v;
 
 		// Loop over faces(polygon)
 		size_t index_offset = 0;
-		for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++)
+		for (size_t f = 0; f < currentShapeFacesCount; f++)
 		{
 			size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
 			size_t fm = shapes[s].mesh.material_ids[f];
@@ -281,34 +182,38 @@ void Scene::_loadObj(
 			{
 				faceDiffuse = { 0.8f, 0.8f, 0.8f };
 			}
+
 			// Loop over vertices in the face.
+			VertexPosition tmpPosition = {};
+			VertexNormal tmpNormal = {};
+			VertexColor tmpColor = {};
+			VertexUV tmpUV = {};
 			for (size_t v = 0; v < fv; v++)
 			{
-				Vertex tmpVertex = {};
-
-				// access to vertex
 				auto idx = shapes[s].mesh.indices[index_offset + v];
-				tmpVertex.position.position = {
+				tmpPosition.position =
+				{
 					attrib.positions[3 * size_t(idx.position_index) + 0],
 					attrib.positions[3 * size_t(idx.position_index) + 1],
 					attrib.positions[3 * size_t(idx.position_index) + 2]
 				};
 
-				tmpVertex.position.position.x *= scale;
-				tmpVertex.position.position.y *= scale;
-				tmpVertex.position.position.z *= scale;
+				tmpPosition.position.x *= scale;
+				tmpPosition.position.y *= scale;
+				tmpPosition.position.z *= scale;
 
 				min = XMVectorMin(
 					min,
-					XMLoadFloat3(&tmpVertex.position.position));
+					XMLoadFloat3(&tmpPosition.position));
 				max = XMVectorMax(
 					max,
-					XMLoadFloat3(&tmpVertex.position.position));
+					XMLoadFloat3(&tmpPosition.position));
 
 				// Check if `normal_index` is zero or positive. negative = no normal data
 				if (idx.normal_index >= 0)
 				{
-					tmpVertex.normal.normal = {
+					tmpNormal.normal =
+					{
 						attrib.normals[3 * size_t(idx.normal_index) + 0],
 						attrib.normals[3 * size_t(idx.normal_index) + 1],
 						attrib.normals[3 * size_t(idx.normal_index) + 2]
@@ -318,25 +223,19 @@ void Scene::_loadObj(
 				// Check if `texcoord_index` is zero or positive. negative = no texcoord data
 				if (idx.texcoord_index >= 0)
 				{
-					tmpVertex.uv.uv = {
+					tmpUV.uv =
+					{
 						attrib.texcoords[2 * size_t(idx.texcoord_index) + 0],
 						attrib.texcoords[2 * size_t(idx.texcoord_index) + 1]
 					};
 				}
 
-				tmpVertex.color.color = faceDiffuse;
+				tmpColor.color = faceDiffuse;
 
-				if (uniqueVertices.count(tmpVertex) == 0)
-				{
-					uniqueVertices[tmpVertex] = positionsCPU.size();
-
-					positionsCPU.push_back(tmpVertex.position);
-					normalsCPU.push_back(tmpVertex.normal);
-					colorsCPU.push_back(tmpVertex.color);
-					texcoordsCPU.push_back(tmpVertex.uv);
-				}
-
-				indicesCPU.push_back(uniqueVertices[tmpVertex]);
+				unindexedPositions.push_back(tmpPosition);
+				unindexedNormals.push_back(tmpNormal);
+				unindexedColors.push_back(tmpColor);
+				unindexedUVs.push_back(tmpUV);
 			}
 
 			index_offset += fv;
@@ -345,10 +244,86 @@ void Scene::_loadObj(
 			//shapes[s].mesh.material_ids[f];
 		}
 
+		meshopt_Stream streams[] =
+		{
+			{
+				unindexedPositions.data(),
+				sizeof(decltype(unindexedPositions)::value_type::position),
+				sizeof(decltype(unindexedPositions)::value_type)
+			},
+			{
+				unindexedNormals.data(),
+				sizeof(decltype(unindexedNormals)::value_type::normal),
+				sizeof(decltype(unindexedNormals)::value_type)
+			},
+			{
+				unindexedColors.data(),
+				sizeof(decltype(unindexedColors)::value_type::color),
+				sizeof(decltype(unindexedColors)::value_type)
+			},
+			{
+				unindexedUVs.data(),
+				sizeof(decltype(unindexedUVs)::value_type::uv),
+				sizeof(decltype(unindexedUVs)::value_type)
+			}
+		};
+
+		UINT64 indexCount = currentShapeFacesCount * 3;
+		std::vector<UINT> remap(indexCount);
+		size_t uniqueVertexCount = meshopt_generateVertexRemapMulti(
+			remap.data(),
+			nullptr,
+			indexCount,
+			unindexedPositions.size(),
+			streams,
+			_countof(streams));
+
+		UINT positionsCPUOldSize = positionsCPU.size();
+		UINT normalsCPUOldSize = normalsCPU.size();
+		UINT colorsCPUOldSize = colorsCPU.size();
+		UINT texcoordsCPUOldSize = texcoordsCPU.size();
+		UINT indicesCPUOldSize = indicesCPU.size();
+
+		positionsCPU.resize(positionsCPUOldSize + uniqueVertexCount);
+		normalsCPU.resize(normalsCPUOldSize + uniqueVertexCount);
+		colorsCPU.resize(colorsCPUOldSize + uniqueVertexCount);
+		texcoordsCPU.resize(texcoordsCPUOldSize + uniqueVertexCount);
+		indicesCPU.resize(indicesCPUOldSize + indexCount);
+
+		meshopt_remapIndexBuffer(
+			indicesCPU.data() + indicesCPUOldSize,
+			nullptr,
+			indexCount,
+			remap.data());
+		meshopt_remapVertexBuffer(
+			positionsCPU.data() + positionsCPUOldSize,
+			unindexedPositions.data(),
+			unindexedPositions.size(),
+			sizeof(decltype(positionsCPU)::value_type),
+			remap.data());
+		meshopt_remapVertexBuffer(
+			normalsCPU.data() + normalsCPUOldSize,
+			unindexedNormals.data(),
+			unindexedNormals.size(),
+			sizeof(decltype(normalsCPU)::value_type),
+			remap.data());
+		meshopt_remapVertexBuffer(
+			colorsCPU.data() + colorsCPUOldSize,
+			unindexedColors.data(),
+			unindexedColors.size(),
+			sizeof(decltype(colorsCPU)::value_type),
+			remap.data());
+		meshopt_remapVertexBuffer(
+			texcoordsCPU.data() + texcoordsCPUOldSize,
+			unindexedUVs.data(),
+			unindexedUVs.size(),
+			sizeof(decltype(texcoordsCPU)::value_type),
+			remap.data());
+
 		XMStoreFloat3(&mesh.AABB.center, (min + max) * 0.5f);
 		XMStoreFloat3(&mesh.AABB.extents, (max - min) * 0.5f);
 		mesh.indexCountPerInstance =
-			indicesCPU.size() - mesh.indexCountPerInstance;
+			indicesCPU.size() - indicesCPUOldSize;
 		mesh.instanceCount = 1;
 		mesh.startInstanceLocation = 0;
 		meshesMeta.push_back(mesh);
@@ -416,12 +391,6 @@ void Scene::_loadObj(
 			}
 		}
 	}
-
-	positionsCPU.shrink_to_fit();
-	normalsCPU.shrink_to_fit();
-	colorsCPU.shrink_to_fit();
-	texcoordsCPU.shrink_to_fit();
-	indicesCPU.shrink_to_fit();
 }
 
 void Scene::_createVBResources(ScenesIndices sceneIndex)
