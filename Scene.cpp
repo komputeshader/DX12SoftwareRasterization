@@ -319,6 +319,11 @@ void Scene::_loadObj(
 			unindexedUVs.size(),
 			sizeof(decltype(texcoordsCPU)::value_type),
 			remap.data());
+		meshopt_optimizeVertexCache(
+			indicesCPU.data() + indicesCPUOldSize,
+			indicesCPU.data() + indicesCPUOldSize,
+			indexCount,
+			unindexedPositions.size());
 
 		XMStoreFloat3(&mesh.AABB.center, (min + max) * 0.5f);
 		XMStoreFloat3(&mesh.AABB.extents, (max - min) * 0.5f);
