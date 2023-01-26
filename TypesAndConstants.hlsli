@@ -70,12 +70,26 @@ struct AABB
 	float pad1;
 };
 
+struct MeshMeta
+{
+	AABB aabb;
+
+	uint indexCountPerInstance;
+	uint instanceCount;
+	uint startIndexLocation;
+	int baseVertexLocation;
+	uint startInstanceLocation;
+
+	float3 coneApex;
+	float3 coneAxis;
+	float coneCutoff;
+};
+
 struct Instance
 {
 	float4x4 worldTransform;
 	uint meshID;
-
-	uint pad[3];
+	float3 color;
 };
 
 struct DrawIndexedArguments

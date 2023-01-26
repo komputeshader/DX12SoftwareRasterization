@@ -48,9 +48,9 @@ class AABB
 {
 public:
 
-	DirectX::XMFLOAT3 center{ 0.0f, 0.0f, 0.0f };
+	DirectX::XMFLOAT3 center = { 0.0f, 0.0f, 0.0f };
 	float pad0;
-	DirectX::XMFLOAT3 extents{ 0.0f, 0.0f, 0.0f };
+	DirectX::XMFLOAT3 extents = { 0.0f, 0.0f, 0.0f };
 	float pad1;
 
 	float GetDiagonalLength() const
@@ -72,7 +72,9 @@ struct MeshMeta
 	INT baseVertexLocation;
 	UINT startInstanceLocation;
 
-	UINT pad[3];
+	DirectX::XMFLOAT3 coneApex;
+	DirectX::XMFLOAT3 coneAxis;
+	float coneCutoff;
 };
 
 struct Frustum
@@ -91,8 +93,7 @@ struct Instance
 {
 	DirectX::XMFLOAT4X4 worldTransform;
 	UINT meshID;
-
-	UINT pad[3];
+	DirectX::XMFLOAT3 color;
 };
 
 struct DepthSceneCB

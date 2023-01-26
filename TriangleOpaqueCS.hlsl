@@ -15,7 +15,7 @@ cbuffer SceneCB : register(b0)
 	float BigTriangleThreshold;
 	float BigTriangleTileSize;
 	uint ShowCascades;
-	uint pad;
+	uint ShowMeshlets;
 	float4 CascadeBias[MaxCascadesCount / 4];
 	float4 CascadeSplits[MaxCascadesCount / 4];
 };
@@ -78,8 +78,9 @@ void main(
 	float4 p0CS, p1CS, p2CS;
 	uint instanceID = groupID.y;
 	uint instanceIndex = StartInstanceLocation + instanceID;
+	Instance instance = Instances[instanceIndex];
 	GetCSPositions(
-		instanceIndex,
+		instance,
 		v0P, v1P, v2P,
 		p0CS, p1CS, p2CS);
 
@@ -253,6 +254,10 @@ void main(
 						weight0 * v0C * invW0 +
 						weight1 * v1C * invW1 +
 						weight2 * v2C * invW2);
+					if (ShowMeshlets)
+					{
+						color = instance.color;
+					}
 
 					float3 positionWS = denom * (
 						weight0 * v0P * invW0 +

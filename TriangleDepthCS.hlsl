@@ -66,8 +66,9 @@ void main(
 	float4 p0CS, p1CS, p2CS;
 	uint instanceID = groupID.y;
 	uint instanceIndex = StartInstanceLocation + instanceID;
+	Instance instance = Instances[instanceIndex];
 	GetCSPositions(
-		instanceIndex,
+		instance,
 		v0P, v1P, v2P,
 		p0CS, p1CS, p2CS);
 

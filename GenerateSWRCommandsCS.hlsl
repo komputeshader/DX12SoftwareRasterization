@@ -1,18 +1,5 @@
 #include "Common.hlsli"
 
-struct MeshMeta
-{
-	AABB aabb;
-
-	uint indexCountPerInstance;
-	uint instanceCount;
-	uint startIndexLocation;
-	int baseVertexLocation;
-	uint startInstanceLocation;
-
-	uint pad[3];
-};
-
 typedef TriangleCommand IndirectCommand;
 
 cbuffer CullingCB : register(b0)

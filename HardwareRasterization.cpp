@@ -16,7 +16,8 @@ struct SceneCB
 	float cascadeBias[Settings::MaxCascadesCount];
 	float cascadeSplits[Settings::MaxCascadesCount];
 	UINT showCascades;
-	float pad[27];
+	UINT showMeshlets;
+	float pad[26];
 };
 static_assert(
 	(sizeof(SceneCB) % 256) == 0,
@@ -196,6 +197,7 @@ void HardwareRasterization::Update()
 	sceneCB.VP = camera.GetVP();
 	sceneCB.cascadesCount = Settings::CascadesCount;
 	sceneCB.showCascades = ShadowsResources::Shadows.ShowCascades() ? 1 : 0;
+	sceneCB.showMeshlets = Settings::ShowMeshlets ? 1 : 0;
 	XMStoreFloat3(
 		&sceneCB.sunDirection,
 		XMVector3Normalize(XMLoadFloat3(

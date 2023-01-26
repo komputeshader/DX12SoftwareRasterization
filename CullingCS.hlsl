@@ -1,18 +1,5 @@
 #include "Common.hlsli"
 
-struct MeshMeta
-{
-	AABB aabb;
-
-	uint indexCountPerInstance;
-	uint instanceCount;
-	uint startIndexLocation;
-	int baseVertexLocation;
-	uint startInstanceLocation;
-
-	uint pad[3];
-};
-
 cbuffer CullingCB : register(b0)
 {
 	uint TotalInstancesCount;
@@ -23,7 +10,10 @@ cbuffer CullingCB : register(b0)
 	uint ShadowsHiZCullingEnabled;
 	float2 DepthResolution;
 	float2 ShadowMapResolution;
-	uint2 pad;
+	uint2 pad0;
+	float3 CameraPosition;
+	uint pad1;
+	float4 CascadeCameraPosition[MaxCascadesCount];
 	Frustum Camera;
 	Frustum Cascade[MaxCascadesCount];
 	float4x4 PrevFrameCameraVP;
@@ -149,6 +139,17 @@ bool AABBVsHiZ(
 	return !(tileDepth > maxP.z);
 }
 
+bool BackfacingMeshlet(
+	in float3 cameraPosition,
+	in float3 coneApex,
+	in float3 coneAxis,
+	in float coneCutoff)
+{
+	return dot(
+		normalize(coneApex - cameraPosition),
+		coneAxis) >= coneCutoff;
+}
+
 [numthreads(CullingThreadsX, CullingThreadsY, CullingThreadsZ)]
 void main(
 	uint3 groupID : SV_GroupID,
@@ -164,11 +165,19 @@ void main(
 	Instance instance = Instances[dispatchThreadID.x];
 	MeshMeta meshMeta = MeshesMeta[instance.meshID];
 	meshMeta.aabb = TransformAABB(meshMeta.aabb, instance.worldTransform);
+	meshMeta.coneApex = mul(
+		instance.worldTransform,
+		float4(meshMeta.coneApex, 1.0)).xyz;
 
 	uint writeIndex = meshMeta.startInstanceLocation;
 
+	bool cameraBackface = BackfacingMeshlet(
+		CameraPosition,
+		meshMeta.coneApex,
+		meshMeta.coneAxis,
+		meshMeta.coneCutoff);
 	bool cameraFC = AABBVsFrustum(meshMeta.aabb, Camera);
-	if (cameraFC || !FrustumCullingEnabled)
+	if (!cameraBackface && (cameraFC || !FrustumCullingEnabled))
 	{
 		bool cameraHiZC = AABBVsHiZ(
 			meshMeta.aabb,
@@ -187,8 +196,13 @@ void main(
 		}
 	}
 
+	bool cascade0Backface = BackfacingMeshlet(
+		CascadeCameraPosition[0].xyz,
+		meshMeta.coneApex,
+		meshMeta.coneAxis,
+		meshMeta.coneCutoff);
 	bool cascade0FC = AABBVsFrustum(meshMeta.aabb, Cascade[0]);
-	if (cascade0FC || !FrustumCullingEnabled)
+	if (!cascade0Backface && (cascade0FC || !FrustumCullingEnabled))
 	{
 		bool cascade0HiZC = AABBVsHiZ(
 			meshMeta.aabb,
@@ -207,8 +221,13 @@ void main(
 		}
 	}
 
+	bool cascade1Backface = BackfacingMeshlet(
+		CascadeCameraPosition[1].xyz,
+		meshMeta.coneApex,
+		meshMeta.coneAxis,
+		meshMeta.coneCutoff);
 	bool cascade1FC = AABBVsFrustum(meshMeta.aabb, Cascade[1]);
-	if (cascade1FC || !FrustumCullingEnabled)
+	if (!cascade1Backface && (cascade1FC || !FrustumCullingEnabled))
 	{
 		bool cascade1HiZC = AABBVsHiZ(
 			meshMeta.aabb,
@@ -227,8 +246,13 @@ void main(
 		}
 	}
 
+	bool cascade2Backface = BackfacingMeshlet(
+		CascadeCameraPosition[2].xyz,
+		meshMeta.coneApex,
+		meshMeta.coneAxis,
+		meshMeta.coneCutoff);
 	bool cascade2FC = AABBVsFrustum(meshMeta.aabb, Cascade[2]);
-	if (cascade2FC || !FrustumCullingEnabled)
+	if (!cascade2Backface && (cascade2FC || !FrustumCullingEnabled))
 	{
 		bool cascade2HiZC = AABBVsHiZ(
 			meshMeta.aabb,
@@ -247,8 +271,13 @@ void main(
 		}
 	}
 
+	bool cascade3Backface = BackfacingMeshlet(
+		CascadeCameraPosition[3].xyz,
+		meshMeta.coneApex,
+		meshMeta.coneAxis,
+		meshMeta.coneCutoff);
 	bool cascade3FC = AABBVsFrustum(meshMeta.aabb, Cascade[3]);
-	if (cascade3FC || !FrustumCullingEnabled)
+	if (!cascade3Backface && (cascade3FC || !FrustumCullingEnabled))
 	{
 		bool cascade3HiZC = AABBVsHiZ(
 			meshMeta.aabb,

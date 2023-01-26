@@ -67,8 +67,9 @@ void main(
 			v0P, v1P, v2P);
 
 		float4 p0CS, p1CS, p2CS;
+		Instance instance = Instances[t.instanceIndex];
 		GetCSPositions(
-			t.instanceIndex,
+			instance,
 			v0P, v1P, v2P,
 			p0CS, p1CS, p2CS);
 

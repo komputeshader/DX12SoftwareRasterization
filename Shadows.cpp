@@ -631,6 +631,9 @@ void ShadowsResources::Update()
 			cascadeFarZ += -cascadeNearZ + 1.0f;
 			cascadeNearZ = 1.0f;
 		}
+
+		XMStoreFloat4(&_cascadeCameraPosition[cascade], P);
+
 		XMMATRIX projection = XMMatrixOrthographicOffCenterLH(
 			XMVectorGetX(cascadeFrustumMinLS),
 			XMVectorGetX(cascadeFrustumMaxLS),
@@ -741,6 +744,8 @@ void ShadowsResources::GUINewFrame()
 
 		ImGui::Checkbox("Show Cascades", &_showCascades);
 		//ImGui::Checkbox("Bound Cascades By Spheres", &_boundCascadesBySpheres);
+
+		ImGui::Checkbox("Show Meshlets", &Settings::ShowMeshlets);
 	}
 	ImGui::End();
 }

@@ -21,11 +21,14 @@ struct CullingCB
 	XMFLOAT2 depthResolution;
 	XMFLOAT2 shadowMapResolution;
 	UINT pad0[2];
+	XMFLOAT3 cameraPosition;
+	UINT pad1[1];
+	XMFLOAT4 cascadeCameraPosition[Settings::MaxCascadesCount];
 	Frustum camera;
 	Frustum cascade[Settings::MaxCascadesCount];
 	XMFLOAT4X4 prevFrameCameraVP;
 	XMFLOAT4X4 prevFrameCascadeVP[Settings::MaxCascadesCount];
-	float pad1[44];
+	float pad2[8];
 };
 static_assert(
 	(sizeof(CullingCB) % 256) == 0,
@@ -92,11 +95,14 @@ void Culler::Update()
 		static_cast<float>(Settings::ShadowMapRes),
 		static_cast<float>(Settings::ShadowMapRes)
 	};
+	cullingData.cameraPosition = camera.GetPosition();
 	cullingData.camera = camera.GetFrustum();
 	cullingData.prevFrameCameraVP = camera.GetPrevFrameVP();
 
 	for (UINT cascade = 0; cascade < Settings::CascadesCount; cascade++)
 	{
+		cullingData.cascadeCameraPosition[cascade] =
+			ShadowsResources::Shadows.GetCascadeCameraPosition(cascade);
 		cullingData.cascade[cascade] =
 			ShadowsResources::Shadows.GetCascadeFrustum(cascade);
 		cullingData.prevFrameCascadeVP[cascade] =

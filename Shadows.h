@@ -56,6 +56,11 @@ public:
 		assert(cascade < Settings::MaxCascadesCount);
 		return _cascadeFrustums[cascade];
 	}
+	const DirectX::XMFLOAT4& GetCascadeCameraPosition(UINT cascade) const
+	{
+		assert(cascade < Settings::MaxCascadesCount);
+		return _cascadeCameraPosition[cascade];
+	}
 
 	bool ShowCascades() const { return _showCascades; }
 
@@ -86,6 +91,7 @@ private:
 	CD3DX12_VIEWPORT _viewport;
 	CD3DX12_RECT _scissorRect;
 
+	DirectX::XMFLOAT4 _cascadeCameraPosition[Settings::MaxCascadesCount];
 	DirectX::XMFLOAT4X4 _cascadeVP[Settings::MaxCascadesCount];
 	DirectX::XMFLOAT4X4 _prevFrameCascadeVP[Settings::MaxCascadesCount];
 	Frustum _cascadeFrustums[Settings::MaxCascadesCount];

@@ -150,6 +150,7 @@ void Scene::_loadObj(
 		UINT64 currentShapeFacesCount = shapes[s].mesh.num_face_vertices.size();
 		facesCount += currentShapeFacesCount;
 
+		// read mesh data
 		std::vector<VertexPosition> unindexedPositions;
 		unindexedPositions.reserve(currentShapeFacesCount * 3);
 		std::vector<VertexNormal> unindexedNormals;
@@ -159,9 +160,9 @@ void Scene::_loadObj(
 		std::vector<VertexUV> unindexedUVs;
 		unindexedUVs.reserve(currentShapeFacesCount * 3);
 
-		MeshMeta mesh{};
-		mesh.startIndexLocation = indicesCPU.size();
-		mesh.baseVertexLocation = positionsCPU.size();
+		//MeshMeta mesh = {};
+		//mesh.startIndexLocation = indicesCPU.size();
+		//mesh.baseVertexLocation = positionsCPU.size();
 
 		XMVECTOR min = g_XMFltMax.v;
 		XMVECTOR max = -g_XMFltMax.v;
@@ -244,6 +245,7 @@ void Scene::_loadObj(
 			//shapes[s].mesh.material_ids[f];
 		}
 
+		// optimize mesh data and perform indexing
 		meshopt_Stream streams[] =
 		{
 			{
@@ -325,13 +327,101 @@ void Scene::_loadObj(
 			indexCount,
 			unindexedPositions.size());
 
-		XMStoreFloat3(&mesh.AABB.center, (min + max) * 0.5f);
-		XMStoreFloat3(&mesh.AABB.extents, (max - min) * 0.5f);
-		mesh.indexCountPerInstance =
-			indicesCPU.size() - indicesCPUOldSize;
-		mesh.instanceCount = 1;
-		mesh.startInstanceLocation = 0;
-		meshesMeta.push_back(mesh);
+		// generate meshlets for more efficient culling
+		// not for use with mesh shaders
+		const UINT64 maxVertices = 128;
+		const UINT64 maxTriangles = 256;
+		// 0.0 had better results overall
+		const float coneWeight = 0.0f;
+
+		UINT64 maxMeshlets = meshopt_buildMeshletsBound(
+			indexCount,
+			maxVertices,
+			maxTriangles);
+		std::vector<meshopt_Meshlet> meshlets(maxMeshlets);
+		// indices into positionsCPU + offset
+		std::vector<UINT> meshletVertices(maxMeshlets * maxVertices);
+		std::vector<UINT8> meshletTriangles(
+			maxMeshlets * maxTriangles * 3);
+
+		UINT64 meshletCount = meshopt_buildMeshlets(
+			meshlets.data(),
+			meshletVertices.data(),
+			meshletTriangles.data(),
+			indicesCPU.data() + indicesCPUOldSize,
+			indexCount,
+			reinterpret_cast<float*>(positionsCPU.data() + positionsCPUOldSize),
+			uniqueVertexCount,
+			sizeof(decltype(positionsCPU)::value_type),
+			maxVertices,
+			maxTriangles,
+			coneWeight);
+
+		const meshopt_Meshlet& last = meshlets[meshletCount - 1];
+
+		meshletVertices.resize(last.vertex_offset + last.vertex_count);
+		meshletTriangles.resize(
+			last.triangle_offset + ((last.triangle_count * 3 + 3) & ~3));
+		meshlets.resize(meshletCount);
+
+		// emulation of classic index buffer
+		indicesCPU.resize(indicesCPUOldSize + meshletTriangles.size());
+
+		MeshMeta mesh = {};
+		for (const auto& meshlet : meshlets)
+		{
+			meshopt_Bounds bounds = meshopt_computeMeshletBounds(
+				&meshletVertices[meshlet.vertex_offset],
+				&meshletTriangles[meshlet.triangle_offset],
+				meshlet.triangle_count,
+				reinterpret_cast<float*>(positionsCPU.data() +
+					positionsCPUOldSize),
+				uniqueVertexCount,
+				sizeof(decltype(positionsCPU)::value_type));
+			memcpy(
+				&mesh.AABB.center,
+				&bounds.center,
+				sizeof(decltype(mesh.AABB.center)));
+			mesh.AABB.extents =
+			{
+				bounds.radius,
+				bounds.radius,
+				bounds.radius
+			};
+
+			mesh.indexCountPerInstance = meshlet.triangle_count * 3;
+			mesh.instanceCount = 1;
+			mesh.startIndexLocation = indicesCPUOldSize;
+			mesh.baseVertexLocation = positionsCPUOldSize;
+			mesh.startInstanceLocation = 0;
+
+			memcpy(
+				&mesh.coneApex,
+				&bounds.cone_apex,
+				sizeof(decltype(mesh.coneApex)));
+			memcpy(
+				&mesh.coneAxis,
+				&bounds.cone_axis,
+				sizeof(decltype(mesh.coneAxis)));
+			mesh.coneCutoff = bounds.cone_cutoff;
+
+			meshesMeta.push_back(mesh);
+
+			for (UINT v = 0; v < meshlet.triangle_count * 3; v++)
+			{
+				indicesCPU[indicesCPUOldSize++] =
+					meshletVertices[
+						meshlet.vertex_offset + meshletTriangles[
+							meshlet.triangle_offset + v]];
+			}
+		}
+
+		//XMStoreFloat3(&mesh.AABB.center, (min + max) * 0.5f);
+		//XMStoreFloat3(&mesh.AABB.extents, (max - min) * 0.5f);
+		//mesh.indexCountPerInstance = indexCount;
+		//mesh.instanceCount = 1;
+		//mesh.startInstanceLocation = 0;
+		//meshesMeta.push_back(mesh);
 
 		objectMin = XMVectorMin(objectMin, min);
 		objectMax = XMVectorMax(objectMax, max);
@@ -389,6 +479,12 @@ void Scene::_loadObj(
 					&instance.worldTransform,
 					transform);
 				instance.meshID = meshIndex;
+				instance.color =
+				{
+					static_cast<float>(meshIndex & 1),
+					static_cast<float>(meshIndex & 3) / 4,
+					static_cast<float>(meshIndex & 7) / 8
+				};
 
 				sceneAABB = Utils::MergeAABBs(
 					sceneAABB,

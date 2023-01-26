@@ -26,6 +26,7 @@ public:
     static bool CameraHiZCullingEnabled;
     static bool ShadowsHiZCullingEnabled;
     static bool SWREnabled;
+    static bool ShowMeshlets;
     static const float CameraNearZ;
     static const float CameraFarZ;
     static const float GUITransparency;

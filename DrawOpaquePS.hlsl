@@ -9,6 +9,7 @@ cbuffer SceneCB : register(b0)
 	float4 CascadeBias[MaxCascadesCount / 4];
 	float4 CascadeSplits[MaxCascadesCount / 4];
 	uint ShowCascades;
+	uint ShowMeshlets;
 };
 
 struct VSOutput

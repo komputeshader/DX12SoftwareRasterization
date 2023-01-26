@@ -30,7 +30,7 @@ struct SWRSceneCB
 	float bigTriangleThreshold;
 	float bigTriangleTileSize;
 	UINT showCascades;
-	UINT pad0[1];
+	UINT showMeshlets;
 	float cascadeBias[Settings::MaxCascadesCount];
 	float cascadeSplits[Settings::MaxCascadesCount];
 	UINT pad1[20];
@@ -403,6 +403,7 @@ void SoftwareRasterization::Update()
 	sceneData.bigTriangleThreshold = static_cast<float>(_bigTriangleThreshold);
 	sceneData.bigTriangleTileSize = static_cast<float>(_bigTriangleTileSize);
 	sceneData.showCascades = ShadowsResources::Shadows.ShowCascades() ? 1 : 0;
+	sceneData.showMeshlets = Settings::ShowMeshlets ? 1 : 0;
 	for (UINT cascade = 0; cascade < Settings::CascadesCount; cascade++)
 	{
 		sceneData.cascadeVP[cascade] =

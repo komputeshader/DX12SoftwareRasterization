@@ -85,7 +85,7 @@ void GetTriangleVertexUVs(
 #endif // OPAQUE
 
 void GetCSPositions(
-	in uint instanceIndex,
+	in Instance instance,
 	inout float3 p0,
 	inout float3 p1,
 	inout float3 p2,
@@ -93,9 +93,6 @@ void GetCSPositions(
 	out float4 p1CS,
 	out float4 p2CS)
 {
-	// instancing
-	Instance instance = Instances[instanceIndex];
-
 	// MS -> WS -> VS -> CS
 	p0 = mul(instance.worldTransform, float4(p0, 1.0)).xyz;
 	p1 = mul(instance.worldTransform, float4(p1, 1.0)).xyz;

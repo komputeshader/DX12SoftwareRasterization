@@ -11,7 +11,7 @@ cbuffer SceneCB : register(b0)
 	float BigTriangleThreshold;
 	float BigTriangleTileSize;
 	uint ShowCascades;
-	uint pad;
+	uint ShowMeshlets;
 	float4 CascadeBias[MaxCascadesCount / 4];
 	float4 CascadeSplits[MaxCascadesCount / 4];
 };
@@ -92,8 +92,9 @@ void main(
 			V0P, V1P, V2P);
 
 		float4 p0CS, p1CS, p2CS;
+		Instance instance = Instances[t.instanceIndex];
 		GetCSPositions(
-			t.instanceIndex,
+			instance,
 			V0P, V1P, V2P,
 			p0CS, p1CS, p2CS);
 
@@ -137,6 +138,12 @@ void main(
 			v0Idx, v1Idx, v2Idx,
 			t.baseVertexLocation,
 			V0C, V1C, V2C);
+		if (ShowMeshlets)
+		{
+			V0C = instance.color;
+			V1C = instance.color;
+			V2C = instance.color;
+		}
 		GetTriangleVertexUVs(
 			v0Idx, v1Idx, v2Idx,
 			t.baseVertexLocation,
