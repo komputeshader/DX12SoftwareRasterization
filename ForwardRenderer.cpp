@@ -739,17 +739,19 @@ void ForwardRenderer::_GUINewFrame()
 
 		const auto& stats = _stats->GetStats();
 
-		UINT pipelineTriangles;
-		UINT trianglesRendered;
+		float pipelineTriangles;
+		float trianglesRendered;
 		if (Settings::SWREnabled)
 		{
-			pipelineTriangles = _SWR->GetPipelineTrianglesCount();
-			trianglesRendered = _SWR->GetRenderedTrianglesCount();
+			pipelineTriangles =
+				static_cast<float>(_SWR->GetPipelineTrianglesCount());
+			trianglesRendered =
+				static_cast<float>(_SWR->GetRenderedTrianglesCount());
 		}
 		else
 		{
-			pipelineTriangles = stats.IAPrimitives;
-			trianglesRendered = stats.CPrimitives;
+			pipelineTriangles = static_cast<float>(stats.IAPrimitives);
+			trianglesRendered = static_cast<float>(stats.CPrimitives);
 		}
 
 		ImGui::Text(
@@ -769,6 +771,22 @@ void ForwardRenderer::_GUINewFrame()
 		ImGui::Text(
 			"CS Invocations: %.3f Mil",
 			stats.CSInvocations / 1'000'000.0f);
+
+		ImGui::Dummy(ImVec2(0.0f, 10.0f));
+
+		if (Settings::SWREnabled)
+		{
+			ImGui::Text(
+				"Average Vertex Cache Miss Rate\n"
+				"(0.5 is good, 3.0 is terrible): WIP");
+		}
+		else
+		{
+			ImGui::Text(
+				"Average Vertex Cache Miss Rate\n"
+				"(0.5 is good, 3.0 is terrible): %.3f",
+				stats.VSInvocations / pipelineTriangles);
+		}
 
 		ImGui::Dummy(ImVec2(0.0f, 10.0f));
 
@@ -807,6 +825,10 @@ void ForwardRenderer::_GUINewFrame()
 			&Settings::FrustumCullingEnabled);
 
 		ImGui::Checkbox(
+			"Enable Cluster Culling",
+			&Settings::ClusterCullingEnabled);
+
+		ImGui::Checkbox(
 			"Enable Camera Hi-Z Culling",
 			&Settings::CameraHiZCullingEnabled);
 
@@ -816,7 +838,8 @@ void ForwardRenderer::_GUINewFrame()
 
 		if (!Settings::FrustumCullingEnabled
 			&& !Settings::CameraHiZCullingEnabled
-			&& !Settings::ShadowsHiZCullingEnabled)
+			&& !Settings::ShadowsHiZCullingEnabled
+			&& !Settings::ClusterCullingEnabled)
 		{
 			Settings::CullingEnabled = false;
 		}

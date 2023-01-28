@@ -8,9 +8,10 @@ cbuffer CullingCB : register(b0)
 	uint FrustumCullingEnabled;
 	uint CameraHiZCullingEnabled;
 	uint ShadowsHiZCullingEnabled;
+	uint ClusterCullingEnabled;
+	uint pad0;
 	float2 DepthResolution;
 	float2 ShadowMapResolution;
-	uint2 pad0;
 	float3 CameraPosition;
 	uint pad1;
 	float4 CascadeCameraPosition[MaxCascadesCount];
@@ -177,7 +178,8 @@ void main(
 		meshMeta.coneAxis,
 		meshMeta.coneCutoff);
 	bool cameraFC = AABBVsFrustum(meshMeta.aabb, Camera);
-	if (!cameraBackface && (cameraFC || !FrustumCullingEnabled))
+	if ((!cameraBackface || !ClusterCullingEnabled)
+		&& (cameraFC || !FrustumCullingEnabled))
 	{
 		bool cameraHiZC = AABBVsHiZ(
 			meshMeta.aabb,
@@ -202,7 +204,8 @@ void main(
 		meshMeta.coneAxis,
 		meshMeta.coneCutoff);
 	bool cascade0FC = AABBVsFrustum(meshMeta.aabb, Cascade[0]);
-	if (!cascade0Backface && (cascade0FC || !FrustumCullingEnabled))
+	if ((!cascade0Backface || !ClusterCullingEnabled)
+		&& (cascade0FC || !FrustumCullingEnabled))
 	{
 		bool cascade0HiZC = AABBVsHiZ(
 			meshMeta.aabb,
@@ -227,7 +230,8 @@ void main(
 		meshMeta.coneAxis,
 		meshMeta.coneCutoff);
 	bool cascade1FC = AABBVsFrustum(meshMeta.aabb, Cascade[1]);
-	if (!cascade1Backface && (cascade1FC || !FrustumCullingEnabled))
+	if ((!cascade1Backface || !ClusterCullingEnabled)
+		&& (cascade1FC || !FrustumCullingEnabled))
 	{
 		bool cascade1HiZC = AABBVsHiZ(
 			meshMeta.aabb,
@@ -252,7 +256,8 @@ void main(
 		meshMeta.coneAxis,
 		meshMeta.coneCutoff);
 	bool cascade2FC = AABBVsFrustum(meshMeta.aabb, Cascade[2]);
-	if (!cascade2Backface && (cascade2FC || !FrustumCullingEnabled))
+	if ((!cascade2Backface || !ClusterCullingEnabled)
+		&& (cascade2FC || !FrustumCullingEnabled))
 	{
 		bool cascade2HiZC = AABBVsHiZ(
 			meshMeta.aabb,
@@ -277,7 +282,8 @@ void main(
 		meshMeta.coneAxis,
 		meshMeta.coneCutoff);
 	bool cascade3FC = AABBVsFrustum(meshMeta.aabb, Cascade[3]);
-	if (!cascade3Backface && (cascade3FC || !FrustumCullingEnabled))
+	if ((!cascade3Backface || !ClusterCullingEnabled)
+		&& (cascade3FC || !FrustumCullingEnabled))
 	{
 		bool cascade3HiZC = AABBVsHiZ(
 			meshMeta.aabb,

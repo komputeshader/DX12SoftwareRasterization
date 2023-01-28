@@ -2,6 +2,8 @@
 
 #include "Common.h"
 
+#define SCENE_MESHLETIZATION
+
 class Settings
 {
 public:
@@ -25,6 +27,7 @@ public:
     static bool FrustumCullingEnabled;
     static bool CameraHiZCullingEnabled;
     static bool ShadowsHiZCullingEnabled;
+    static bool ClusterCullingEnabled;
     static bool SWREnabled;
     static bool ShowMeshlets;
     static const float CameraNearZ;

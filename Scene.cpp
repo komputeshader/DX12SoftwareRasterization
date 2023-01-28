@@ -160,10 +160,6 @@ void Scene::_loadObj(
 		std::vector<VertexUV> unindexedUVs;
 		unindexedUVs.reserve(currentShapeFacesCount * 3);
 
-		//MeshMeta mesh = {};
-		//mesh.startIndexLocation = indicesCPU.size();
-		//mesh.baseVertexLocation = positionsCPU.size();
-
 		XMVECTOR min = g_XMFltMax.v;
 		XMVECTOR max = -g_XMFltMax.v;
 
@@ -327,6 +323,7 @@ void Scene::_loadObj(
 			indexCount,
 			unindexedPositions.size());
 
+#ifdef SCENE_MESHLETIZATION
 		// generate meshlets for more efficient culling
 		// not for use with mesh shaders
 		const UINT64 maxVertices = 128;
@@ -415,13 +412,17 @@ void Scene::_loadObj(
 							meshlet.triangle_offset + v]];
 			}
 		}
-
-		//XMStoreFloat3(&mesh.AABB.center, (min + max) * 0.5f);
-		//XMStoreFloat3(&mesh.AABB.extents, (max - min) * 0.5f);
-		//mesh.indexCountPerInstance = indexCount;
-		//mesh.instanceCount = 1;
-		//mesh.startInstanceLocation = 0;
-		//meshesMeta.push_back(mesh);
+#else
+		MeshMeta mesh = {};
+		XMStoreFloat3(&mesh.AABB.center, (min + max) * 0.5f);
+		XMStoreFloat3(&mesh.AABB.extents, (max - min) * 0.5f);
+		mesh.indexCountPerInstance = indexCount;
+		mesh.instanceCount = 1;
+		mesh.startIndexLocation = indicesCPUOldSize;
+		mesh.baseVertexLocation = positionsCPUOldSize;
+		mesh.startInstanceLocation = 0;
+		meshesMeta.push_back(mesh);
+#endif
 
 		objectMin = XMVectorMin(objectMin, min);
 		objectMax = XMVectorMax(objectMax, max);

@@ -36,7 +36,10 @@ RWStructuredBuffer<uint> Statistics : register(u2);
 #include "Common.hlsli"
 #include "Rasterization.hlsli"
 
-[numthreads(SWRTriangleThreadsX, SWRTriangleThreadsY, SWRTriangleThreadsZ)]
+[numthreads(
+	SWRTriangleThreadsX,
+	SWRTriangleThreadsY,
+	SWRTriangleThreadsZ)]
 void main(
 	uint3 groupID : SV_GroupID,
 	uint3 dispatchThreadID : SV_DispatchThreadID,

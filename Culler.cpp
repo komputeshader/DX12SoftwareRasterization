@@ -18,9 +18,10 @@ struct CullingCB
 	UINT frustumCullingEnabled;
 	UINT cameraHiZCullingEnabled;
 	UINT shadowsHiZCullingEnabled;
+	UINT clusterCullingEnabled;
+	UINT pad0[1];
 	XMFLOAT2 depthResolution;
 	XMFLOAT2 shadowMapResolution;
-	UINT pad0[2];
 	XMFLOAT3 cameraPosition;
 	UINT pad1[1];
 	XMFLOAT4 cascadeCameraPosition[Settings::MaxCascadesCount];
@@ -85,6 +86,8 @@ void Culler::Update()
 		Settings::CameraHiZCullingEnabled ? 1 : 0;
 	cullingData.shadowsHiZCullingEnabled =
 		Settings::ShadowsHiZCullingEnabled ? 1 : 0;
+	cullingData.clusterCullingEnabled =
+		Settings::ClusterCullingEnabled ? 1 : 0;
 	cullingData.depthResolution =
 	{
 		static_cast<float>(Settings::BackBufferWidth),
