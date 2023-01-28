@@ -421,6 +421,7 @@ void Scene::_loadObj(
 		mesh.startIndexLocation = indicesCPUOldSize;
 		mesh.baseVertexLocation = positionsCPUOldSize;
 		mesh.startInstanceLocation = 0;
+		mesh.coneCutoff = D3D12_FLOAT32_MAX;
 		meshesMeta.push_back(mesh);
 #endif
 

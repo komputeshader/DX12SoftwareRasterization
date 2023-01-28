@@ -8,7 +8,7 @@ cbuffer CullingCB : register(b0)
 	uint FrustumCullingEnabled;
 	uint CameraHiZCullingEnabled;
 	uint ShadowsHiZCullingEnabled;
-	uint ClusterCullingEnabled;
+	uint ClusterBackfaceCullingEnabled;
 	uint pad0;
 	float2 DepthResolution;
 	float2 ShadowMapResolution;
@@ -178,7 +178,7 @@ void main(
 		meshMeta.coneAxis,
 		meshMeta.coneCutoff);
 	bool cameraFC = AABBVsFrustum(meshMeta.aabb, Camera);
-	if ((!cameraBackface || !ClusterCullingEnabled)
+	if ((!cameraBackface || !ClusterBackfaceCullingEnabled)
 		&& (cameraFC || !FrustumCullingEnabled))
 	{
 		bool cameraHiZC = AABBVsHiZ(
@@ -204,7 +204,7 @@ void main(
 		meshMeta.coneAxis,
 		meshMeta.coneCutoff);
 	bool cascade0FC = AABBVsFrustum(meshMeta.aabb, Cascade[0]);
-	if ((!cascade0Backface || !ClusterCullingEnabled)
+	if ((!cascade0Backface || !ClusterBackfaceCullingEnabled)
 		&& (cascade0FC || !FrustumCullingEnabled))
 	{
 		bool cascade0HiZC = AABBVsHiZ(
@@ -230,7 +230,7 @@ void main(
 		meshMeta.coneAxis,
 		meshMeta.coneCutoff);
 	bool cascade1FC = AABBVsFrustum(meshMeta.aabb, Cascade[1]);
-	if ((!cascade1Backface || !ClusterCullingEnabled)
+	if ((!cascade1Backface || !ClusterBackfaceCullingEnabled)
 		&& (cascade1FC || !FrustumCullingEnabled))
 	{
 		bool cascade1HiZC = AABBVsHiZ(
@@ -256,7 +256,7 @@ void main(
 		meshMeta.coneAxis,
 		meshMeta.coneCutoff);
 	bool cascade2FC = AABBVsFrustum(meshMeta.aabb, Cascade[2]);
-	if ((!cascade2Backface || !ClusterCullingEnabled)
+	if ((!cascade2Backface || !ClusterBackfaceCullingEnabled)
 		&& (cascade2FC || !FrustumCullingEnabled))
 	{
 		bool cascade2HiZC = AABBVsHiZ(
@@ -282,7 +282,7 @@ void main(
 		meshMeta.coneAxis,
 		meshMeta.coneCutoff);
 	bool cascade3FC = AABBVsFrustum(meshMeta.aabb, Cascade[3]);
-	if ((!cascade3Backface || !ClusterCullingEnabled)
+	if ((!cascade3Backface || !ClusterBackfaceCullingEnabled)
 		&& (cascade3FC || !FrustumCullingEnabled))
 	{
 		bool cascade3HiZC = AABBVsHiZ(

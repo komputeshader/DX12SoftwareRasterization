@@ -778,13 +778,13 @@ void ForwardRenderer::_GUINewFrame()
 		{
 			ImGui::Text(
 				"Average Vertex Cache Miss Rate\n"
-				"(0.5 is good, 3.0 is terrible): WIP");
+				"(0.5 is ideal, 3.0 is terrible): WIP");
 		}
 		else
 		{
 			ImGui::Text(
 				"Average Vertex Cache Miss Rate\n"
-				"(0.5 is good, 3.0 is terrible): %.3f",
+				"(0.5 is ideal, 3.0 is terrible): %.3f",
 				stats.VSInvocations / pipelineTriangles);
 		}
 
@@ -824,9 +824,11 @@ void ForwardRenderer::_GUINewFrame()
 			"Enable Frustum Culling",
 			&Settings::FrustumCullingEnabled);
 
+#ifdef SCENE_MESHLETIZATION
 		ImGui::Checkbox(
-			"Enable Cluster Culling",
-			&Settings::ClusterCullingEnabled);
+			"Enable Cluster Backface Culling",
+			&Settings::ClusterBackfaceCullingEnabled);
+#endif
 
 		ImGui::Checkbox(
 			"Enable Camera Hi-Z Culling",
@@ -839,7 +841,7 @@ void ForwardRenderer::_GUINewFrame()
 		if (!Settings::FrustumCullingEnabled
 			&& !Settings::CameraHiZCullingEnabled
 			&& !Settings::ShadowsHiZCullingEnabled
-			&& !Settings::ClusterCullingEnabled)
+			&& !Settings::ClusterBackfaceCullingEnabled)
 		{
 			Settings::CullingEnabled = false;
 		}

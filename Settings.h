@@ -27,7 +27,7 @@ public:
     static bool FrustumCullingEnabled;
     static bool CameraHiZCullingEnabled;
     static bool ShadowsHiZCullingEnabled;
-    static bool ClusterCullingEnabled;
+    static bool ClusterBackfaceCullingEnabled;
     static bool SWREnabled;
     static bool ShowMeshlets;
     static const float CameraNearZ;
