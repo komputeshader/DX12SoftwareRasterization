@@ -122,15 +122,15 @@ void Culler::Cull(
 	ID3D12GraphicsCommandList* commandList,
 	ComPtr<ID3D12Resource>* visibleInstances,
 	ComPtr<ID3D12Resource>* culledCommands,
-	UINT culledCommandsCounterOffset)
+	ComPtr<ID3D12Resource>* culledCommandsCounters)
 {
 	PIXBeginEvent(commandList, 0, L"Culling");
 
-	CD3DX12_RESOURCE_BARRIER barriers[3 * Settings::FrustumsCount] = {};
+	CD3DX12_RESOURCE_BARRIER barriers[4 * Settings::FrustumsCount] = {};
 	for (UINT frustum = 0; frustum < Settings::FrustumsCount; frustum++)
 	{
 		barriers[frustum] = CD3DX12_RESOURCE_BARRIER::Transition(
-			culledCommands[frustum].Get(),
+			culledCommandsCounters[frustum].Get(),
 			D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
 			D3D12_RESOURCE_STATE_COPY_DEST);
 	}
@@ -140,8 +140,8 @@ void Culler::Cull(
 	for (UINT frustum = 0; frustum < Settings::FrustumsCount; frustum++)
 	{
 		commandList->CopyBufferRegion(
-			culledCommands[frustum].Get(),
-			culledCommandsCounterOffset,
+			culledCommandsCounters[frustum].Get(),
+			0,
 			_culledCommandsCounterReset.Get(),
 			0,
 			sizeof(UINT));
@@ -152,19 +152,26 @@ void Culler::Cull(
 
 	for (UINT frustum = 0; frustum < Settings::FrustumsCount; frustum++)
 	{
-		barriers[frustum] = CD3DX12_RESOURCE_BARRIER::Transition(
-			culledCommands[frustum].Get(),
+		barriers[4 * frustum] = CD3DX12_RESOURCE_BARRIER::Transition(
+			culledCommandsCounters[frustum].Get(),
 			D3D12_RESOURCE_STATE_COPY_DEST,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		barriers[Settings::FrustumsCount + frustum] =
+		barriers[4 * frustum + 1] =
 			CD3DX12_RESOURCE_BARRIER::Transition(
 				_cullingCounters[frustum].Get(),
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		barriers[2 * Settings::FrustumsCount + frustum] =
+		barriers[4 * frustum + 2] =
 			CD3DX12_RESOURCE_BARRIER::Transition(
 				visibleInstances[frustum].Get(),
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		barriers[4 * frustum + 3] =
+			CD3DX12_RESOURCE_BARRIER::Transition(
+				culledCommands[frustum].Get(),
+				Settings::SWREnabled
+				? D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE
+				: D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	}
 	commandList->ResourceBarrier(_countof(barriers), barriers);
@@ -212,51 +219,31 @@ void Culler::Cull(
 	// gererate commands
 	for (UINT frustum = 0; frustum < Settings::FrustumsCount; frustum++)
 	{
-		barriers[frustum] = CD3DX12_RESOURCE_BARRIER::Transition(
+		barriers[2 * frustum] = CD3DX12_RESOURCE_BARRIER::Transition(
 			_cullingCounters[frustum].Get(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		barriers[Settings::FrustumsCount + frustum] =
+		barriers[2 * frustum + 1] =
 			CD3DX12_RESOURCE_BARRIER::Transition(
 				visibleInstances[frustum].Get(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 	}
-	commandList->ResourceBarrier(
-		2 * Settings::FrustumsCount,
-		barriers);
+	commandList->ResourceBarrier(2 * Settings::FrustumsCount, barriers);
 
-	commandList->SetComputeRootSignature(
-		Settings::SWREnabled
-		? _generateSWRCommandsRS.Get()
-		: _generateHWRCommandsRS.Get()
-	);
-	commandList->SetPipelineState(
-		Settings::SWREnabled
-		? _generateSWRCommandsPSO.Get()
-		: _generateHWRCommandsPSO.Get());
+	commandList->SetComputeRootSignature(_generateHWRCommandsRS.Get());
+	commandList->SetPipelineState(_generateHWRCommandsPSO.Get());
 	commandList->SetComputeRootConstantBufferView(
 		0, cbAdress);
 	commandList->SetComputeRootDescriptorTable(
 		1, Scene::CurrentScene->meshesMetaGPU.GetSRV());
 	commandList->SetComputeRootDescriptorTable(
 		2, Descriptors::SV.GetGPUHandle(CullingCountersSRV));
-	if (Settings::SWREnabled)
-	{
-		commandList->SetComputeRootDescriptorTable(
-			3,
-			Descriptors::SV.GetGPUHandle(
-				SWRCulledCommandsUAV +
-				DX::FrameIndex * PerFrameDescriptorsCount));
-	}
-	else
-	{
-		commandList->SetComputeRootDescriptorTable(
-			3,
-			Descriptors::SV.GetGPUHandle(
-				CulledCommandsUAV +
-				DX::FrameIndex * PerFrameDescriptorsCount));
-	}
+	commandList->SetComputeRootDescriptorTable(
+		3,
+		Descriptors::SV.GetGPUHandle(
+			CulledCommandsUAV +
+			DX::FrameIndex * PerFrameDescriptorsCount));
 	commandList->Dispatch(
 		Utils::DispatchSize(
 			Settings::CullingThreadsX,
@@ -266,12 +253,19 @@ void Culler::Cull(
 
 	for (UINT frustum = 0; frustum < Settings::FrustumsCount; frustum++)
 	{
-		barriers[frustum] = CD3DX12_RESOURCE_BARRIER::Transition(
+		barriers[2 * frustum] = CD3DX12_RESOURCE_BARRIER::Transition(
 			culledCommands[frustum].Get(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-			D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
+			Settings::SWREnabled
+			? D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE
+			: D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
+		barriers[2 * frustum + 1] =
+			CD3DX12_RESOURCE_BARRIER::Transition(
+				culledCommandsCounters[frustum].Get(),
+				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+				D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
 	}
-	commandList->ResourceBarrier(Settings::FrustumsCount, barriers);
+	commandList->ResourceBarrier(2 * Settings::FrustumsCount, barriers);
 
 	PIXEndEvent(commandList);
 }
@@ -466,44 +460,19 @@ void Culler::_createGenerateCommandsPSO()
 		_generateHWRCommandsRS);
 	NAME_D3D12_OBJECT(_generateHWRCommandsRS);
 
-	Utils::CreateRS(
-		computeRootSignatureDesc,
-		_generateSWRCommandsRS);
-	NAME_D3D12_OBJECT(_generateSWRCommandsRS);
+	ShaderHelper computeShader;
+	ReadDataFromFile(
+		Utils::GetAssetFullPath(L"GenerateCommandsCS.cso").c_str(),
+		&computeShader.data,
+		&computeShader.size);
 
-	{
-		ShaderHelper computeShader;
-		ReadDataFromFile(
-			Utils::GetAssetFullPath(L"GenerateCommandsCS.cso").c_str(),
-			&computeShader.data,
-			&computeShader.size);
+	D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+	psoDesc.pRootSignature = _generateHWRCommandsRS.Get();
+	psoDesc.CS = { computeShader.data, computeShader.size };
 
-		D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
-		psoDesc.pRootSignature = _generateHWRCommandsRS.Get();
-		psoDesc.CS = { computeShader.data, computeShader.size };
-
-		ThrowIfFailed(
-			DX::Device->CreateComputePipelineState(
-				&psoDesc,
-				IID_PPV_ARGS(&_generateHWRCommandsPSO)));
-		NAME_D3D12_OBJECT(_generateHWRCommandsPSO);
-	}
-
-	{
-		ShaderHelper computeShader;
-		ReadDataFromFile(
-			Utils::GetAssetFullPath(L"GenerateSWRCommandsCS.cso").c_str(),
-			&computeShader.data,
-			&computeShader.size);
-
-		D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
-		psoDesc.pRootSignature = _generateSWRCommandsRS.Get();
-		psoDesc.CS = { computeShader.data, computeShader.size };
-
-		ThrowIfFailed(
-			DX::Device->CreateComputePipelineState(
-				&psoDesc,
-				IID_PPV_ARGS(&_generateSWRCommandsPSO)));
-		NAME_D3D12_OBJECT(_generateSWRCommandsPSO);
-	}
+	ThrowIfFailed(
+		DX::Device->CreateComputePipelineState(
+			&psoDesc,
+			IID_PPV_ARGS(&_generateHWRCommandsPSO)));
+	NAME_D3D12_OBJECT(_generateHWRCommandsPSO);
 }

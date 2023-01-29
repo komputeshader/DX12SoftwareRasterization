@@ -12,7 +12,7 @@ public:
 		ID3D12GraphicsCommandList* commandList,
 		Microsoft::WRL::ComPtr<ID3D12Resource>* visibleInstances,
 		Microsoft::WRL::ComPtr<ID3D12Resource>* culledCommands,
-		UINT culledCommandsCounterOffset);
+		Microsoft::WRL::ComPtr<ID3D12Resource>* culledCommandsCounters);
 
 private:
 
@@ -27,8 +27,6 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> _cullingPSO;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> _generateHWRCommandsRS;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> _generateHWRCommandsPSO;
-	Microsoft::WRL::ComPtr<ID3D12RootSignature> _generateSWRCommandsRS;
-	Microsoft::WRL::ComPtr<ID3D12PipelineState> _generateSWRCommandsPSO;
 	Microsoft::WRL::ComPtr<ID3D12Resource>
 		_cullingCounters[Settings::FrustumsCount];
 	Microsoft::WRL::ComPtr<ID3D12Resource> _culledCommandsCounterReset;

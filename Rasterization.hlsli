@@ -86,21 +86,25 @@ void GetTriangleVertexUVs(
 
 void GetCSPositions(
 	in Instance instance,
-	inout float3 p0,
-	inout float3 p1,
-	inout float3 p2,
+	in float3 p0,
+	in float3 p1,
+	in float3 p2,
+	out float3 p0WS,
+	out float3 p1WS,
+	out float3 p2WS,
 	out float4 p0CS,
 	out float4 p1CS,
 	out float4 p2CS)
 {
-	// MS -> WS -> VS -> CS
-	p0 = mul(instance.worldTransform, float4(p0, 1.0)).xyz;
-	p1 = mul(instance.worldTransform, float4(p1, 1.0)).xyz;
-	p2 = mul(instance.worldTransform, float4(p2, 1.0)).xyz;
+	// MS -> WS
+	p0WS = mul(instance.worldTransform, float4(p0, 1.0)).xyz;
+	p1WS = mul(instance.worldTransform, float4(p1, 1.0)).xyz;
+	p2WS = mul(instance.worldTransform, float4(p2, 1.0)).xyz;
 
-	p0CS = mul(VP, float4(p0, 1.0));
-	p1CS = mul(VP, float4(p1, 1.0));
-	p2CS = mul(VP, float4(p2, 1.0));
+	// WS -> VS -> CS
+	p0CS = mul(VP, float4(p0WS, 1.0));
+	p1CS = mul(VP, float4(p1WS, 1.0));
+	p2CS = mul(VP, float4(p2WS, 1.0));
 }
 
 void GetSSPositions(

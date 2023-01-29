@@ -16,6 +16,8 @@ cbuffer SceneCB : register(b0)
 	float4 CascadeSplits[MaxCascadesCount / 4];
 };
 
+SamplerState PointClampSampler : register(s0);
+
 StructuredBuffer<VertexPosition> Positions : register(t0);
 StructuredBuffer<VertexNormal> Normals : register(t1);
 StructuredBuffer<VertexColor> Colors : register(t2);
@@ -27,8 +29,6 @@ StructuredBuffer<BigTriangle> BigTriangles : register(t10);
 Texture2D Depth : register(t11);
 Texture2DArray ShadowMap : register(t12);
 
-SamplerState PointClampSampler : register(s0);
-
 RWTexture2D<float4> RenderTarget : register(u0);
 
 groupshared float2 MinP;
@@ -36,18 +36,18 @@ groupshared float2 MaxP;
 groupshared float2 P0SS;
 groupshared float2 P1SS;
 groupshared float2 P2SS;
-groupshared float3 V0P;
-groupshared float3 V1P;
-groupshared float3 V2P;
-groupshared float3 V0N;
-groupshared float3 V1N;
-groupshared float3 V2N;
-groupshared float3 V0C;
-groupshared float3 V1C;
-groupshared float3 V2C;
-groupshared float2 V0UV;
-groupshared float2 V1UV;
-groupshared float2 V2UV;
+groupshared float3 P0WS;
+groupshared float3 P1WS;
+groupshared float3 P2WS;
+groupshared float3 N0;
+groupshared float3 N1;
+groupshared float3 N2;
+groupshared float3 C0;
+groupshared float3 C1;
+groupshared float3 C2;
+groupshared float2 UV0;
+groupshared float2 UV1;
+groupshared float2 UV2;
 groupshared float Z0NDC;
 groupshared float Z1NDC;
 groupshared float Z2NDC;
@@ -81,21 +81,23 @@ void main(
 
 		// no tests checks for this triangle, since it had passed them already
 
-		uint v0Idx, v1Idx, v2Idx;
+		uint i0, i1, i2;
 		GetTriangleIndices(
 			t.triangleIndex,
-			v0Idx, v1Idx, v2Idx);
+			i0, i1, i2);
 
+		float3 p0, p1, p2;
 		GetTriangleVertexPositions(
-			v0Idx, v1Idx, v2Idx,
+			i0, i1, i2,
 			t.baseVertexLocation,
-			V0P, V1P, V2P);
+			p0, p1, p2);
 
 		float4 p0CS, p1CS, p2CS;
 		Instance instance = Instances[t.instanceIndex];
 		GetCSPositions(
 			instance,
-			V0P, V1P, V2P,
+			p0, p1, p2,
+			P0WS, P1WS, P2WS,
 			p0CS, p1CS, p2CS);
 
 		float invW0 = 1.0 / p0CS.w;
@@ -131,23 +133,23 @@ void main(
 		MaxP = min(maxP.xy, MinP + BigTriangleTileSize.xx);
 
 		GetTriangleVertexNormals(
-			v0Idx, v1Idx, v2Idx,
+			i0, i1, i2,
 			t.baseVertexLocation,
-			V0N, V1N, V2N);
+			N0, N1, N2);
 		GetTriangleVertexColors(
-			v0Idx, v1Idx, v2Idx,
+			i0, i1, i2,
 			t.baseVertexLocation,
-			V0C, V1C, V2C);
+			C0, C1, C2);
 		if (ShowMeshlets)
 		{
-			V0C = instance.color;
-			V1C = instance.color;
-			V2C = instance.color;
+			C0 = instance.color;
+			C1 = instance.color;
+			C2 = instance.color;
 		}
 		GetTriangleVertexUVs(
-			v0Idx, v1Idx, v2Idx,
+			i0, i1, i2,
 			t.baseVertexLocation,
-			V0UV, V1UV, V2UV);
+			UV0, UV1, UV2);
 		P0SS = p0SS;
 		P1SS = p1SS;
 		P2SS = p2SS;
@@ -209,20 +211,20 @@ void main(
 						weight2 * InvW2);
 
 					float3 N = denom * (
-						weight0 * V0N * InvW0 +
-						weight1 * V1N * InvW1 +
-						weight2 * V2N * InvW2);
+						weight0 * N0 * InvW0 +
+						weight1 * N1 * InvW1 +
+						weight2 * N2 * InvW2);
 					N = normalize(N);
 
 					float3 color = denom * (
-						weight0 * V0C * InvW0 +
-						weight1 * V1C * InvW1 +
-						weight2 * V2C * InvW2);
+						weight0 * C0 * InvW0 +
+						weight1 * C1 * InvW1 +
+						weight2 * C2 * InvW2);
 
 					float3 positionWS = denom * (
-						weight0 * V0P * InvW0 +
-						weight1 * V1P * InvW1 +
-						weight2 * V2P * InvW2);
+						weight0 * P0WS * InvW0 +
+						weight1 * P1WS * InvW1 +
+						weight2 * P2WS * InvW2);
 
 					float NdotL = saturate(dot(SunDirection, N));
 					float viewDepth = denom;

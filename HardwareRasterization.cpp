@@ -23,12 +23,6 @@ static_assert(
 	(sizeof(SceneCB) % 256) == 0,
 	"Constant Buffer size must be 256-byte aligned");
 
-struct IndirectCommand
-{
-	UINT startInstanceLocation;
-	D3D12_DRAW_INDEXED_ARGUMENTS arguments;
-};
-
 void HardwareRasterization::Resize(
 	ForwardRenderer* renderer,
 	UINT width,
@@ -132,54 +126,6 @@ void HardwareRasterization::_createMDIStuff()
 			_HWRRS.Get(),
 			IID_PPV_ARGS(&_commandSignature)));
 	NAME_D3D12_OBJECT(_commandSignature);
-
-	UINT commandsSizePerFrame =
-		Scene::MaxSceneMeshesMetaCount * sizeof(IndirectCommand);
-	_culledCommandsCounterOffset =
-		Utils::AlignForUavCounter(commandsSizePerFrame);
-	// Allocate a buffer large enough to hold all of the indirect commands
-	// for a single frame as well as a UAV counter.
-	CD3DX12_RESOURCE_DESC commandBufferDesc =
-		CD3DX12_RESOURCE_DESC::Buffer(
-			_culledCommandsCounterOffset + sizeof(UINT),
-			D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-	auto prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-
-	D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc = {};
-	UAVDesc.Format = DXGI_FORMAT_UNKNOWN;
-	UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-	UAVDesc.Buffer.FirstElement = 0;
-	UAVDesc.Buffer.NumElements = Scene::MaxSceneMeshesMetaCount;
-	UAVDesc.Buffer.StructureByteStride = sizeof(IndirectCommand);
-	UAVDesc.Buffer.CounterOffsetInBytes = _culledCommandsCounterOffset;
-	UAVDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
-
-	for (UINT frame = 0; frame < DX::FramesCount; frame++)
-	{
-		for (UINT frustum = 0; frustum < Settings::FrustumsCount; frustum++)
-		{
-			ThrowIfFailed(
-				DX::Device->CreateCommittedResource(
-					&prop,
-					D3D12_HEAP_FLAG_NONE,
-					&commandBufferDesc,
-					D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
-					nullptr,
-					IID_PPV_ARGS(&_culledCommands[frame][frustum])));
-			SetNameIndexed(
-				_culledCommands[frame][frustum].Get(),
-				L"_culledCommands",
-				frame * Settings::FrustumsCount + frustum);
-
-			DX::Device->CreateUnorderedAccessView(
-				_culledCommands[frame][frustum].Get(),
-				_culledCommands[frame][frustum].Get(),
-				&UAVDesc,
-				Descriptors::SV.GetCPUHandle(
-					CulledCommandsUAV + frustum +
-					frame * PerFrameDescriptorsCount));
-		}
-	}
 }
 
 void HardwareRasterization::Update()
@@ -278,10 +224,10 @@ void HardwareRasterization::_drawDepth()
 		DX::CommandList->ExecuteIndirect(
 			_commandSignature.Get(),
 			Scene::CurrentScene->meshesMetaCPU.size(),
-			_culledCommands[DX::FrameIndex][0].Get(),
+			_renderer->GetCulledCommands(DX::FrameIndex, 0),
 			0,
-			_culledCommands[DX::FrameIndex][0].Get(),
-			_culledCommandsCounterOffset);
+			_renderer->GetCulledCommandsCounter(DX::FrameIndex, 0),
+			0);
 	}
 	else
 	{
@@ -333,21 +279,21 @@ void HardwareRasterization::_drawShadows()
 	DX::CommandList->RSSetScissorRects(
 		1, &ShadowsResources::Shadows.GetScissorRect());
 
-	for (UINT cascade = 0; cascade < Settings::CascadesCount; cascade++)
+	for (UINT cascade = 1; cascade <= Settings::CascadesCount; cascade++)
 	{
 		DX::CommandList->SetGraphicsRootConstantBufferView(
 			0,
 			_depthSceneCB->GetGPUVirtualAddress() +
 			DX::FrameIndex * _depthSceneCBFrameSize +
-			(cascade + 1) * sizeof(DepthSceneCB));
+			cascade * sizeof(DepthSceneCB));
 		DX::CommandList->SetGraphicsRootDescriptorTable(
 			2,
 			Settings::CullingEnabled
-			? Descriptors::SV.GetGPUHandle(VisibleInstancesSRV + 1 + cascade +
+			? Descriptors::SV.GetGPUHandle(VisibleInstancesSRV + cascade +
 				DX::FrameIndex * PerFrameDescriptorsCount)
 			: Scene::CurrentScene->instancesGPU.GetSRV());
 		auto shadowMapDSVHandle =
-			Descriptors::DS.GetCPUHandle(CascadeDSV + cascade);
+			Descriptors::DS.GetCPUHandle(CascadeDSV + cascade - 1);
 		DX::CommandList->OMSetRenderTargets(
 			0,
 			nullptr,
@@ -361,10 +307,10 @@ void HardwareRasterization::_drawShadows()
 			DX::CommandList->ExecuteIndirect(
 				_commandSignature.Get(),
 				Scene::CurrentScene->meshesMetaCPU.size(),
-				_culledCommands[DX::FrameIndex][1 + cascade].Get(),
+				_renderer->GetCulledCommands(DX::FrameIndex, cascade),
 				0,
-				_culledCommands[DX::FrameIndex][1 + cascade].Get(),
-				_culledCommandsCounterOffset);
+				_renderer->GetCulledCommandsCounter(DX::FrameIndex, cascade),
+				0);
 		}
 		else
 		{
@@ -457,10 +403,10 @@ void HardwareRasterization::_drawOpaque(ID3D12Resource* renderTarget)
 		DX::CommandList->ExecuteIndirect(
 			_commandSignature.Get(),
 			Scene::CurrentScene->meshesMetaCPU.size(),
-			_culledCommands[DX::FrameIndex][0].Get(),
+			_renderer->GetCulledCommands(DX::FrameIndex, 0),
 			0,
-			_culledCommands[DX::FrameIndex][0].Get(),
-			_culledCommandsCounterOffset);
+			_renderer->GetCulledCommandsCounter(DX::FrameIndex, 0),
+			0);
 	}
 	else
 	{

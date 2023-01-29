@@ -43,9 +43,9 @@ enum CBVSRVUAVIndices
 	VisibleInstancesSRV = SingleDescriptorsCount,
 	VisibleInstancesUAV = VisibleInstancesSRV + Settings::FrustumsCount,
 	CulledCommandsUAV = VisibleInstancesUAV + Settings::FrustumsCount,
-	SWRCulledCommandsUAV = CulledCommandsUAV + Settings::FrustumsCount,
+	CulledCommandsSRV = CulledCommandsUAV + Settings::FrustumsCount,
 
-	PerFrameDescriptorsCount = SWRCulledCommandsUAV +
+	PerFrameDescriptorsCount = CulledCommandsSRV +
 		Settings::FrustumsCount - VisibleInstancesSRV,
 	CBVUAVSRVCount = SingleDescriptorsCount +
 		PerFrameDescriptorsCount * DX::FramesCount

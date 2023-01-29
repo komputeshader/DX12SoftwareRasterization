@@ -40,7 +40,8 @@ void CreateDefaultHeapBuffer(
 	UINT64 bufferSize,
 	Microsoft::WRL::ComPtr<ID3D12Resource>& defaultBuffer,
 	Microsoft::WRL::ComPtr<ID3D12Resource>& uploadBuffer,
-	D3D12_RESOURCE_STATES endState);
+	D3D12_RESOURCE_STATES endState,
+	bool unorderedAccess = false);
 
 void CreateCBResources(
 	// CB size is required to be 256-byte aligned.

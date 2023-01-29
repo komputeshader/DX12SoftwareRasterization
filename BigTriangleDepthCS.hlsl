@@ -55,22 +55,24 @@ void main(
 
 		// no tests for this triangle, since it had passed them already
 
-		uint v0Idx, v1Idx, v2Idx;
+		uint i0, i1, i2;
 		GetTriangleIndices(
 			t.triangleIndex,
-			v0Idx, v1Idx, v2Idx);
+			i0, i1, i2);
 
-		float3 v0P, v1P, v2P;
+		float3 p0, p1, p2;
 		GetTriangleVertexPositions(
-			v0Idx, v1Idx, v2Idx,
+			i0, i1, i2,
 			t.baseVertexLocation,
-			v0P, v1P, v2P);
+			p0, p1, p2);
 
+		float3 p0WS, p1WS, p2WS;
 		float4 p0CS, p1CS, p2CS;
 		Instance instance = Instances[t.instanceIndex];
 		GetCSPositions(
 			instance,
-			v0P, v1P, v2P,
+			p0, p1, p2,
+			p0WS, p1WS, p2WS,
 			p0CS, p1CS, p2CS);
 
 		float invW0 = 1.0 / p0CS.w;

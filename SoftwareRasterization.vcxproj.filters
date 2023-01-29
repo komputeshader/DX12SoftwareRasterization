@@ -289,9 +289,6 @@
     <FxCompile Include="DrawOpaqueVS.hlsl">
       <Filter>Assets\Shaders</Filter>
     </FxCompile>
-    <FxCompile Include="GenerateSWRCommandsCS.hlsl">
-      <Filter>Assets\Shaders\Culling</Filter>
-    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="Common.hlsli">

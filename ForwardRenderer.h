@@ -27,6 +27,22 @@ public:
 	virtual void OnRightButtonDown(UINT x, UINT y);
 
 	void PreparePrevFrameDepth(ID3D12Resource* depth);
+	ID3D12Resource* GetCulledCommands(UINT frame, UINT frustum)
+	{
+		assert(frame >= 0);
+		assert(frame < DX::FramesCount);
+		assert(frustum >= 0);
+		assert(frustum < Settings::FrustumsCount);
+		return _culledCommands[frame][frustum].Get();
+	}
+	ID3D12Resource* GetCulledCommandsCounter(UINT frame, UINT frustum)
+	{
+		assert(frame >= 0);
+		assert(frame < DX::FramesCount);
+		assert(frustum >= 0);
+		assert(frustum < Settings::FrustumsCount);
+		return _culledCommandsCounters[frame][frustum].Get();
+	}
 
 private:
 
@@ -38,6 +54,7 @@ private:
 	void _createSwapChain();
 	void _createVisibleInstancesBuffer();
 	void _createDepthBufferResources();
+	void _createCulledCommandsBuffers();
 
 	void _initGUI();
 	void _GUINewFrame();
@@ -54,6 +71,18 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12Resource>
 		_visibleInstances[DX::FramesCount][Settings::FrustumsCount];
 	Microsoft::WRL::ComPtr<ID3D12Resource> _prevFrameDepthBuffer;
+	// per frame granularity for async compute and graphics work
+	Microsoft::WRL::ComPtr<ID3D12Resource>
+		_culledCommands[DX::FramesCount][Settings::FrustumsCount];
+	// first 4 bytes used as a counter
+	// all 12 bytes are used as a dispatch indirect command
+	// [0] - counter / group count X
+	// [1] - group count Y
+	// [2] - group count Z
+	Microsoft::WRL::ComPtr<ID3D12Resource>
+		_culledCommandsCounters[DX::FramesCount][Settings::FrustumsCount];
+	Microsoft::WRL::ComPtr<ID3D12Resource>
+		_culledCommandsCountersUpload[DX::FramesCount][Settings::FrustumsCount];
 
 	std::unique_ptr<Culler> _culler;
 	std::unique_ptr<HardwareRasterization> _HWR;

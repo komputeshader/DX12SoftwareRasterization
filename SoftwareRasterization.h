@@ -24,17 +24,6 @@ public:
 	void Draw();
 
 	ID3D12Resource* GetRenderTarget() const { return _renderTarget.Get(); }
-	auto* GetCulledCommands(UINT frame)
-	{
-		assert(frame >= 0);
-		assert(frame < DX::FramesCount);
-		return _culledCommands[frame];
-	}
-
-	UINT GetCulledCommandsCounterOffset() const
-	{
-		return _culledCommandsCounterOffset;
-	}
 
 	UINT GetPipelineTrianglesCount() const
 	{
@@ -48,21 +37,11 @@ public:
 
 private:
 
-	// WIP
-	enum RSSlots
-	{
-		SceneCB,
-		RootConstants
-	};
-
 	void _createRenderTargetResources();
 	void _createDepthBufferResources();
-	void _createBigTrianglesMDIResources();
-	void _createCullingMDIResources();
+	void _createMDIResources();
 	void _createResetBuffer();
 	void _clearBigTrianglesCounter(UINT frustum);
-	void _createBigTrianglesDispatch(UINT frustum);
-	void _createBigTrianglesDispatches();
 	void _createStatsResources();
 	void _clearStatistics();
 
@@ -113,18 +92,17 @@ private:
 	ForwardRenderer* _renderer;
 
 	// MDI stuff
-	Microsoft::WRL::ComPtr<ID3D12CommandSignature> _triangleDepthCS;
-	Microsoft::WRL::ComPtr<ID3D12CommandSignature> _triangleOpaqueCS;
-	Microsoft::WRL::ComPtr<ID3D12CommandSignature> _bigTrianglesCS;
+	Microsoft::WRL::ComPtr<ID3D12CommandSignature> _dispatchCS;
+	// first 4 bytes used as a counter
+	// all 12 bytes are used as a dispatch indirect command
+	// [0] - counter / group count X
+	// [1] - group count Y
+	// [2] - group count Z
 	Microsoft::WRL::ComPtr<ID3D12Resource>
-		_bigTrianglesDispatch[Settings::FrustumsCount];
+		_bigTrianglesCounters[Settings::FrustumsCount];
 	Microsoft::WRL::ComPtr<ID3D12Resource>
-		_bigTrianglesDispatchUpload[Settings::FrustumsCount];
+		_bigTrianglesCountersUpload[Settings::FrustumsCount];
 	Microsoft::WRL::ComPtr<ID3D12Resource> _counterReset;
-	Microsoft::WRL::ComPtr<ID3D12Resource>
-		_culledCommands[DX::FramesCount][Settings::FrustumsCount];
-	UINT _culledCommandsCounterOffset = 0;
-	UINT _bigTrianglesCounterOffset[Settings::FrustumsCount];
 
 	// statistics resources
 	enum StatsIndices

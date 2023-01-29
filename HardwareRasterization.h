@@ -23,18 +23,6 @@ public:
 	void Draw(ID3D12Resource* renderTarget);
 	void Update();
 
-	auto* GetCulledCommands(UINT frame)
-	{
-		assert(frame >= 0);
-		assert(frame < DX::FramesCount);
-		return _culledCommands[frame];
-	}
-
-	UINT GetCulledCommandsCounterOffset() const
-	{
-		return _culledCommandsCounterOffset;
-	}
-
 private:
 
 	void _loadAssets();
@@ -68,10 +56,6 @@ private:
 
 	// MDI stuff
 	Microsoft::WRL::ComPtr<ID3D12CommandSignature> _commandSignature;
-	// per frame granularity for async compute and graphics work
-	Microsoft::WRL::ComPtr<ID3D12Resource>
-		_culledCommands[DX::FramesCount][Settings::FrustumsCount];
-	UINT _culledCommandsCounterOffset = 0;
 
 	UINT _width;
 	UINT _height;

@@ -39,15 +39,6 @@ static_assert(
 	(sizeof(SWRSceneCB) % 256) == 0,
 	"Constant Buffer size must be 256-byte aligned");
 
-struct TriangleCommand
-{
-	UINT indexCountPerInstance;
-	UINT startIndexLocation;
-	INT baseVertexLocation;
-	UINT startInstanceLocation;
-	D3D12_DISPATCH_ARGUMENTS arguments;
-};
-
 struct BigTriangle
 {
 	UINT triangleIndex;
@@ -55,11 +46,6 @@ struct BigTriangle
 	INT baseVertexLocation;
 
 	float tileOffset;
-};
-
-struct BigTrianglesCommand
-{
-	D3D12_DISPATCH_ARGUMENTS arguments;
 };
 
 void SoftwareRasterization::Resize(
@@ -93,8 +79,7 @@ void SoftwareRasterization::Resize(
 		_sceneCB);
 
 	_createBigTrianglesBuffers();
-	_createBigTrianglesMDIResources();
-	_createCullingMDIResources();
+	_createMDIResources();
 	_createStatsResources();
 	_createResetBuffer();
 }
@@ -127,14 +112,27 @@ void SoftwareRasterization::_createBigTrianglesBuffers()
 	//UINT bigTrianglesPerFrame =
 	//	Scene::MaxSceneFacesCount * sizeof(BigTriangle);
 
+	D3D12_DISPATCH_ARGUMENTS dispatch;
+	dispatch.ThreadGroupCountX = 1;
+	dispatch.ThreadGroupCountY = 1;
+	dispatch.ThreadGroupCountZ = 1;
+
 	for (UINT frustum = 0; frustum < Settings::FrustumsCount; frustum++)
 	{
-		_bigTrianglesCounterOffset[frustum] = Utils::AlignForUavCounter(
-			bigTrianglesPerFrame[frustum] * sizeof(BigTriangle));
+		Utils::CreateDefaultHeapBuffer(
+			DX::CommandList.Get(),
+			&dispatch,
+			sizeof(D3D12_DISPATCH_ARGUMENTS),
+			_bigTrianglesCounters[frustum],
+			_bigTrianglesCountersUpload[frustum],
+			D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
+			true);
+		NAME_D3D12_OBJECT_INDEXED(_bigTrianglesCounters, frustum);
+		NAME_D3D12_OBJECT_INDEXED(_bigTrianglesCountersUpload, frustum);
 
 		CD3DX12_RESOURCE_DESC desc =
 			CD3DX12_RESOURCE_DESC::Buffer(
-				_bigTrianglesCounterOffset[frustum] + sizeof(UINT),
+				bigTrianglesPerFrame[frustum] * sizeof(BigTriangle),
 				D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 
 		auto prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
@@ -154,12 +152,11 @@ void SoftwareRasterization::_createBigTrianglesBuffers()
 		UAVDesc.Buffer.FirstElement = 0;
 		UAVDesc.Buffer.NumElements = bigTrianglesPerFrame[frustum];
 		UAVDesc.Buffer.StructureByteStride = sizeof(BigTriangle);
-		UAVDesc.Buffer.CounterOffsetInBytes =
-			_bigTrianglesCounterOffset[frustum];
+		UAVDesc.Buffer.CounterOffsetInBytes = 0;
 		UAVDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
 		DX::Device->CreateUnorderedAccessView(
 			_bigTriangles[frustum].Get(),
-			_bigTriangles[frustum].Get(),
+			_bigTrianglesCounters[frustum].Get(),
 			&UAVDesc,
 			Descriptors::SV.GetCPUHandle(BigTrianglesUAV + frustum));
 
@@ -225,7 +222,7 @@ void SoftwareRasterization::_createStatsResources()
 	}
 }
 
-void SoftwareRasterization::_createBigTrianglesMDIResources()
+void SoftwareRasterization::_createMDIResources()
 {
 	D3D12_INDIRECT_ARGUMENT_DESC argumentDescs[1] = {};
 	argumentDescs[0].Type = D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH;
@@ -233,109 +230,14 @@ void SoftwareRasterization::_createBigTrianglesMDIResources()
 	D3D12_COMMAND_SIGNATURE_DESC commandSignatureDesc = {};
 	commandSignatureDesc.pArgumentDescs = argumentDescs;
 	commandSignatureDesc.NumArgumentDescs = _countof(argumentDescs);
-	commandSignatureDesc.ByteStride = sizeof(BigTrianglesCommand);
+	commandSignatureDesc.ByteStride = sizeof(D3D12_DISPATCH_ARGUMENTS);
 
 	ThrowIfFailed(
 		DX::Device->CreateCommandSignature(
 			&commandSignatureDesc,
 			nullptr,
-			IID_PPV_ARGS(&_bigTrianglesCS)));
-	NAME_D3D12_OBJECT(_bigTrianglesCS);
-
-	UINT commandsSizePerFrame = sizeof(BigTrianglesCommand);
-	BigTrianglesCommand dispatch;
-	dispatch.arguments.ThreadGroupCountX = 1;
-	dispatch.arguments.ThreadGroupCountY = 1;
-	dispatch.arguments.ThreadGroupCountZ = 1;
-	for (UINT frustum = 0; frustum < Settings::FrustumsCount; frustum++)
-	{
-		Utils::CreateDefaultHeapBuffer(
-			DX::CommandList.Get(),
-			&dispatch,
-			commandsSizePerFrame,
-			_bigTrianglesDispatch[frustum],
-			_bigTrianglesDispatchUpload[frustum],
-			D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
-		NAME_D3D12_OBJECT_INDEXED(_bigTrianglesDispatch, frustum);
-		NAME_D3D12_OBJECT_INDEXED(_bigTrianglesDispatchUpload, frustum);
-	}
-}
-
-void SoftwareRasterization::_createCullingMDIResources()
-{
-	D3D12_INDIRECT_ARGUMENT_DESC argumentDescs[2] = {};
-	argumentDescs[0].Type = D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT;
-	argumentDescs[0].Constant.RootParameterIndex = RootConstants;
-	argumentDescs[0].Constant.DestOffsetIn32BitValues = 0;
-	argumentDescs[0].Constant.Num32BitValuesToSet = 4;
-	argumentDescs[1].Type = D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH;
-
-	D3D12_COMMAND_SIGNATURE_DESC commandSignatureDesc = {};
-	commandSignatureDesc.pArgumentDescs = argumentDescs;
-	commandSignatureDesc.NumArgumentDescs = _countof(argumentDescs);
-	commandSignatureDesc.ByteStride = sizeof(TriangleCommand);
-
-	ThrowIfFailed(
-		DX::Device->CreateCommandSignature(
-			&commandSignatureDesc,
-			_triangleDepthRS.Get(),
-			IID_PPV_ARGS(&_triangleDepthCS)));
-	NAME_D3D12_OBJECT(_triangleDepthCS);
-
-	ThrowIfFailed(
-		DX::Device->CreateCommandSignature(
-			&commandSignatureDesc,
-			_triangleOpaqueRS.Get(),
-			IID_PPV_ARGS(&_triangleOpaqueCS)));
-	NAME_D3D12_OBJECT(_triangleOpaqueCS);
-
-	UINT commandsSizePerFrame =
-		Scene::MaxSceneMeshesMetaCount * sizeof(TriangleCommand);
-	_culledCommandsCounterOffset =
-		Utils::AlignForUavCounter(commandsSizePerFrame);
-	// Allocate a buffer large enough to hold all of the indirect commands
-	// for a single frame as well as a UAV counter.
-	CD3DX12_RESOURCE_DESC commandBufferDesc =
-		CD3DX12_RESOURCE_DESC::Buffer(
-			_culledCommandsCounterOffset + sizeof(UINT),
-			D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-	auto prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-
-	D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc = {};
-	UAVDesc.Format = DXGI_FORMAT_UNKNOWN;
-	UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-	UAVDesc.Buffer.FirstElement = 0;
-	UAVDesc.Buffer.NumElements = Scene::MaxSceneMeshesMetaCount;
-	UAVDesc.Buffer.StructureByteStride = sizeof(TriangleCommand);
-	UAVDesc.Buffer.CounterOffsetInBytes = _culledCommandsCounterOffset;
-	UAVDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
-
-	for (UINT frame = 0; frame < DX::FramesCount; frame++)
-	{
-		for (UINT frustum = 0; frustum < Settings::FrustumsCount; frustum++)
-		{
-			ThrowIfFailed(
-				DX::Device->CreateCommittedResource(
-					&prop,
-					D3D12_HEAP_FLAG_NONE,
-					&commandBufferDesc,
-					D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
-					nullptr,
-					IID_PPV_ARGS(&_culledCommands[frame][frustum])));
-			SetNameIndexed(
-				_culledCommands[frame][frustum].Get(),
-				L"_culledSWRCommands",
-				frame * Settings::FrustumsCount + frustum);
-
-			DX::Device->CreateUnorderedAccessView(
-				_culledCommands[frame][frustum].Get(),
-				_culledCommands[frame][frustum].Get(),
-				&UAVDesc,
-				Descriptors::SV.GetCPUHandle(
-					SWRCulledCommandsUAV + frustum +
-					frame * PerFrameDescriptorsCount));
-		}
-	}
+			IID_PPV_ARGS(&_dispatchCS)));
+	NAME_D3D12_OBJECT(_dispatchCS);
 }
 
 void SoftwareRasterization::Update()
@@ -425,7 +327,6 @@ void SoftwareRasterization::Draw()
 	_beginFrame();
 	_drawDepth();
 	_drawShadows();
-	_createBigTrianglesDispatches();
 	_drawDepthBigTriangles();
 	_drawShadowsBigTriangles();
 	_finishDepthsRendering();
@@ -435,7 +336,7 @@ void SoftwareRasterization::Draw()
 
 void SoftwareRasterization::_beginFrame()
 {
-	CD3DX12_RESOURCE_BARRIER barriers[3 + Settings::FrustumsCount] = {};
+	CD3DX12_RESOURCE_BARRIER barriers[3 + 2 * Settings::FrustumsCount] = {};
 	barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(
 		_trianglesStats.Get(),
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
@@ -443,8 +344,8 @@ void SoftwareRasterization::_beginFrame()
 	for (UINT frustum = 0; frustum < Settings::FrustumsCount; frustum++)
 	{
 		barriers[1 + frustum] = CD3DX12_RESOURCE_BARRIER::Transition(
-			_bigTriangles[frustum].Get(),
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+			_bigTrianglesCounters[frustum].Get(),
+			D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
 			D3D12_RESOURCE_STATE_COPY_DEST);
 	}
 	DX::CommandList->ResourceBarrier(1 + Settings::FrustumsCount, barriers);
@@ -469,12 +370,16 @@ void SoftwareRasterization::_beginFrame()
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	for (UINT frustum = 0; frustum < Settings::FrustumsCount; frustum++)
 	{
-		barriers[3 + frustum] = CD3DX12_RESOURCE_BARRIER::Transition(
+		barriers[3 + 2 * frustum] = CD3DX12_RESOURCE_BARRIER::Transition(
 			_bigTriangles[frustum].Get(),
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		barriers[3 + 2 * frustum + 1] = CD3DX12_RESOURCE_BARRIER::Transition(
+			_bigTrianglesCounters[frustum].Get(),
 			D3D12_RESOURCE_STATE_COPY_DEST,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	}
-	DX::CommandList->ResourceBarrier(3 + Settings::FrustumsCount, barriers);
+	DX::CommandList->ResourceBarrier(3 + 2 * Settings::FrustumsCount, barriers);
 
 	UINT clearValue[] = { 0, 0, 0, 0 };
 	DX::CommandList->ClearUnorderedAccessViewUint(
@@ -512,21 +417,25 @@ void SoftwareRasterization::_drawDepth()
 	DX::CommandList->SetComputeRootSignature(_triangleDepthRS.Get());
 	DX::CommandList->SetPipelineState(_triangleDepthPSO.Get());
 	DX::CommandList->SetComputeRootConstantBufferView(
-		SceneCB,
+		0,
 		_depthSceneCB->GetGPUVirtualAddress() +
 		DX::FrameIndex * _depthSceneCBFrameSize);
 	DX::CommandList->SetComputeRootDescriptorTable(
-		2, Scene::CurrentScene->positionsGPU.GetSRV());
+		1, Scene::CurrentScene->positionsGPU.GetSRV());
 	DX::CommandList->SetComputeRootDescriptorTable(
-		3, Scene::CurrentScene->indicesGPU.GetSRV());
+		2, Scene::CurrentScene->indicesGPU.GetSRV());
 	DX::CommandList->SetComputeRootDescriptorTable(
-		4,
+		3,
 		Settings::CullingEnabled
 		? Descriptors::SV.GetGPUHandle(VisibleInstancesSRV +
 			DX::FrameIndex * PerFrameDescriptorsCount)
 		: Scene::CurrentScene->instancesGPU.GetSRV());
 	DX::CommandList->SetComputeRootDescriptorTable(
-		5, Descriptors::SV.GetGPUHandle(PrevFrameDepthSRV));
+		4, Descriptors::SV.GetGPUHandle(PrevFrameDepthSRV));
+	DX::CommandList->SetComputeRootDescriptorTable(
+		5, Descriptors::SV.GetGPUHandle(
+			CulledCommandsSRV +
+			DX::FrameIndex * PerFrameDescriptorsCount));
 	DX::CommandList->SetComputeRootDescriptorTable(
 		6, Descriptors::SV.GetGPUHandle(SWRDepthUAV));
 	DX::CommandList->SetComputeRootDescriptorTable(
@@ -537,12 +446,12 @@ void SoftwareRasterization::_drawDepth()
 	if (Settings::CullingEnabled)
 	{
 		DX::CommandList->ExecuteIndirect(
-			_triangleDepthCS.Get(),
-			Scene::CurrentScene->meshesMetaCPU.size(),
-			_culledCommands[DX::FrameIndex][0].Get(),
+			_dispatchCS.Get(),
+			1,
+			_renderer->GetCulledCommandsCounter(DX::FrameIndex, 0),
 			0,
-			_culledCommands[DX::FrameIndex][0].Get(),
-			_culledCommandsCounterOffset);
+			nullptr,
+			0);
 	}
 	else
 	{
@@ -567,13 +476,13 @@ void SoftwareRasterization::_drawDepth()
 	barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(
 		_bigTriangles[0].Get(),
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-		D3D12_RESOURCE_STATE_COPY_SOURCE,
+		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 		D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
 		D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
 	barriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(
-		_bigTrianglesDispatch[0].Get(),
+		_bigTrianglesCounters[0].Get(),
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 		D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
-		D3D12_RESOURCE_STATE_COPY_DEST,
 		D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
 		D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
 	DX::CommandList->ResourceBarrier(_countof(barriers), barriers);
@@ -591,23 +500,27 @@ void SoftwareRasterization::_drawShadows()
 	for (UINT cascade = 1; cascade <= Settings::CascadesCount; cascade++)
 	{
 		DX::CommandList->SetComputeRootConstantBufferView(
-			SceneCB,
+			0,
 			_depthSceneCB->GetGPUVirtualAddress() +
 			DX::FrameIndex * _depthSceneCBFrameSize +
 			cascade * sizeof(SWRDepthSceneCB));
 		DX::CommandList->SetComputeRootDescriptorTable(
-			2, Scene::CurrentScene->positionsGPU.GetSRV());
+			1, Scene::CurrentScene->positionsGPU.GetSRV());
 		DX::CommandList->SetComputeRootDescriptorTable(
-			3, Scene::CurrentScene->indicesGPU.GetSRV());
+			2, Scene::CurrentScene->indicesGPU.GetSRV());
 		DX::CommandList->SetComputeRootDescriptorTable(
-			4,
+			3,
 			Settings::CullingEnabled
 			? Descriptors::SV.GetGPUHandle(VisibleInstancesSRV + cascade +
 				DX::FrameIndex * PerFrameDescriptorsCount)
 			: Scene::CurrentScene->instancesGPU.GetSRV());
 		DX::CommandList->SetComputeRootDescriptorTable(
-			5, Descriptors::SV.GetGPUHandle(
+			4, Descriptors::SV.GetGPUHandle(
 				PrevFrameShadowMapSRV + cascade - 1));
+		DX::CommandList->SetComputeRootDescriptorTable(
+			5, Descriptors::SV.GetGPUHandle(
+				CulledCommandsSRV + cascade +
+				DX::FrameIndex * PerFrameDescriptorsCount));
 		DX::CommandList->SetComputeRootDescriptorTable(
 			6, Descriptors::SV.GetGPUHandle(SWRShadowMapUAV + cascade - 1));
 		DX::CommandList->SetComputeRootDescriptorTable(
@@ -618,12 +531,12 @@ void SoftwareRasterization::_drawShadows()
 		if (Settings::CullingEnabled)
 		{
 			DX::CommandList->ExecuteIndirect(
-				_triangleDepthCS.Get(),
-				Scene::CurrentScene->meshesMetaCPU.size(),
-				_culledCommands[DX::FrameIndex][cascade].Get(),
+				_dispatchCS.Get(),
+				1,
+				_renderer->GetCulledCommandsCounter(DX::FrameIndex, cascade),
 				0,
-				_culledCommands[DX::FrameIndex][cascade].Get(),
-				_culledCommandsCounterOffset);
+				nullptr,
+				0);
 		}
 		else
 		{
@@ -647,62 +560,19 @@ void SoftwareRasterization::_drawShadows()
 		barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(
 			_bigTriangles[cascade].Get(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-			D3D12_RESOURCE_STATE_COPY_SOURCE,
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 			D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
 			D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
 		barriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(
-			_bigTrianglesDispatch[cascade].Get(),
+			_bigTrianglesCounters[cascade].Get(),
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
-			D3D12_RESOURCE_STATE_COPY_DEST,
 			D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
 			D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
 		DX::CommandList->ResourceBarrier(_countof(barriers), barriers);
 	}
 
 	PIXEndEvent(DX::CommandList.Get());
-}
-
-void SoftwareRasterization::_createBigTrianglesDispatches()
-{
-	CD3DX12_RESOURCE_BARRIER barriers[2 * Settings::FrustumsCount] = {};
-	for (UINT frustum = 0; frustum < Settings::FrustumsCount; frustum++)
-	{
-		barriers[2 * frustum] = CD3DX12_RESOURCE_BARRIER::Transition(
-			_bigTriangles[frustum].Get(),
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-			D3D12_RESOURCE_STATE_COPY_SOURCE,
-			D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
-			D3D12_RESOURCE_BARRIER_FLAG_END_ONLY);
-		barriers[2 * frustum + 1] = CD3DX12_RESOURCE_BARRIER::Transition(
-			_bigTrianglesDispatch[frustum].Get(),
-			D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
-			D3D12_RESOURCE_STATE_COPY_DEST,
-			D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
-			D3D12_RESOURCE_BARRIER_FLAG_END_ONLY);
-	}
-	DX::CommandList->ResourceBarrier(2 * Settings::FrustumsCount, barriers);
-
-	for (UINT frustum = 0; frustum < Settings::FrustumsCount; frustum++)
-	{
-		_createBigTrianglesDispatch(frustum);
-	}
-
-	for (UINT frustum = 0; frustum < Settings::FrustumsCount; frustum++)
-	{
-		barriers[2 * frustum] = CD3DX12_RESOURCE_BARRIER::Transition(
-			_bigTriangles[frustum].Get(),
-			D3D12_RESOURCE_STATE_COPY_SOURCE,
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-			D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
-			D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
-		barriers[2 * frustum + 1] = CD3DX12_RESOURCE_BARRIER::Transition(
-			_bigTrianglesDispatch[frustum].Get(),
-			D3D12_RESOURCE_STATE_COPY_DEST,
-			D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
-			D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
-			D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
-	}
-	DX::CommandList->ResourceBarrier(2 * Settings::FrustumsCount, barriers);
 }
 
 void SoftwareRasterization::_drawDepthBigTriangles()
@@ -712,13 +582,13 @@ void SoftwareRasterization::_drawDepthBigTriangles()
 	CD3DX12_RESOURCE_BARRIER barriers[2] = {};
 	barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(
 		_bigTriangles[0].Get(),
-		D3D12_RESOURCE_STATE_COPY_SOURCE,
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 		D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
 		D3D12_RESOURCE_BARRIER_FLAG_END_ONLY);
 	barriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(
-		_bigTrianglesDispatch[0].Get(),
-		D3D12_RESOURCE_STATE_COPY_DEST,
+		_bigTrianglesCounters[0].Get(),
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 		D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
 		D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
 		D3D12_RESOURCE_BARRIER_FLAG_END_ONLY);
@@ -727,7 +597,7 @@ void SoftwareRasterization::_drawDepthBigTriangles()
 	DX::CommandList->SetComputeRootSignature(_bigTriangleDepthRS.Get());
 	DX::CommandList->SetPipelineState(_bigTriangleDepthPSO.Get());
 	DX::CommandList->SetComputeRootConstantBufferView(
-		SceneCB,
+		0,
 		_depthSceneCB->GetGPUVirtualAddress() +
 		DX::FrameIndex * _depthSceneCBFrameSize);
 	DX::CommandList->SetComputeRootDescriptorTable(
@@ -746,12 +616,20 @@ void SoftwareRasterization::_drawDepthBigTriangles()
 		5, Descriptors::SV.GetGPUHandle(SWRDepthUAV));
 
 	DX::CommandList->ExecuteIndirect(
-		_bigTrianglesCS.Get(),
+		_dispatchCS.Get(),
 		1,
-		_bigTrianglesDispatch[0].Get(),
+		_bigTrianglesCounters[0].Get(),
 		0,
 		nullptr,
 		0);
+
+	barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(
+		_bigTriangles[0].Get(),
+		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+		D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
+		D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
+	DX::CommandList->ResourceBarrier(1, barriers);
 
 	PIXEndEvent(DX::CommandList.Get());
 }
@@ -767,20 +645,20 @@ void SoftwareRasterization::_drawShadowsBigTriangles()
 	{
 		barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(
 			_bigTriangles[cascade].Get(),
-			D3D12_RESOURCE_STATE_COPY_SOURCE,
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 			D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
 			D3D12_RESOURCE_BARRIER_FLAG_END_ONLY);
 		barriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(
-			_bigTrianglesDispatch[cascade].Get(),
-			D3D12_RESOURCE_STATE_COPY_DEST,
+			_bigTrianglesCounters[cascade].Get(),
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
 			D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
 			D3D12_RESOURCE_BARRIER_FLAG_END_ONLY);
 		DX::CommandList->ResourceBarrier(_countof(barriers), barriers);
 
 		DX::CommandList->SetComputeRootConstantBufferView(
-			SceneCB,
+			0,
 			_depthSceneCB->GetGPUVirtualAddress() +
 			DX::FrameIndex * _depthSceneCBFrameSize +
 			cascade * sizeof(SWRDepthSceneCB));
@@ -800,9 +678,9 @@ void SoftwareRasterization::_drawShadowsBigTriangles()
 			5, Descriptors::SV.GetGPUHandle(SWRShadowMapUAV + cascade - 1));
 
 		DX::CommandList->ExecuteIndirect(
-			_bigTrianglesCS.Get(),
+			_dispatchCS.Get(),
 			1,
-			_bigTrianglesDispatch[cascade].Get(),
+			_bigTrianglesCounters[cascade].Get(),
 			0,
 			nullptr,
 			0);
@@ -836,37 +714,43 @@ void SoftwareRasterization::_drawOpaque()
 
 	CD3DX12_RESOURCE_BARRIER barriers[2] = {};
 	barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(
-		_bigTriangles[0].Get(),
-		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+		_bigTrianglesCounters[0].Get(),
+		D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
 		D3D12_RESOURCE_STATE_COPY_DEST);
 	DX::CommandList->ResourceBarrier(1, barriers);
 
 	_clearBigTrianglesCounter(0);
 
 	barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(
-		_bigTriangles[0].Get(),
+		_bigTrianglesCounters[0].Get(),
 		D3D12_RESOURCE_STATE_COPY_DEST,
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	DX::CommandList->ResourceBarrier(1, barriers);
+	barriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(
+		_bigTriangles[0].Get(),
+		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+		D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
+		D3D12_RESOURCE_BARRIER_FLAG_END_ONLY);
+	DX::CommandList->ResourceBarrier(2, barriers);
 
 	DX::CommandList->SetComputeRootSignature(_triangleOpaqueRS.Get());
 	DX::CommandList->SetPipelineState(_triangleOpaquePSO.Get());
 	DX::CommandList->SetComputeRootConstantBufferView(
-		SceneCB,
+		0,
 		_sceneCB->GetGPUVirtualAddress() +
 		DX::FrameIndex * sizeof(SWRSceneCB));
 	DX::CommandList->SetComputeRootDescriptorTable(
-		2, Scene::CurrentScene->positionsGPU.GetSRV());
+		1, Scene::CurrentScene->positionsGPU.GetSRV());
 	DX::CommandList->SetComputeRootDescriptorTable(
-		3, Scene::CurrentScene->normalsGPU.GetSRV());
+		2, Scene::CurrentScene->normalsGPU.GetSRV());
 	DX::CommandList->SetComputeRootDescriptorTable(
-		4, Scene::CurrentScene->colorsGPU.GetSRV());
+		3, Scene::CurrentScene->colorsGPU.GetSRV());
 	DX::CommandList->SetComputeRootDescriptorTable(
-		5, Scene::CurrentScene->texcoordsGPU.GetSRV());
+		4, Scene::CurrentScene->texcoordsGPU.GetSRV());
 	DX::CommandList->SetComputeRootDescriptorTable(
-		6, Scene::CurrentScene->indicesGPU.GetSRV());
+		5, Scene::CurrentScene->indicesGPU.GetSRV());
 	DX::CommandList->SetComputeRootDescriptorTable(
-		7,
+		6,
 		Settings::CullingEnabled
 		? Descriptors::SV.GetGPUHandle(VisibleInstancesSRV +
 			DX::FrameIndex * PerFrameDescriptorsCount)
@@ -874,9 +758,13 @@ void SoftwareRasterization::_drawOpaque()
 	// misleading naming, actually, at this point in time, it is
 	// current frame depth with Hi-Z mipchain
 	DX::CommandList->SetComputeRootDescriptorTable(
-		8, Descriptors::SV.GetGPUHandle(PrevFrameDepthSRV));
+		7, Descriptors::SV.GetGPUHandle(PrevFrameDepthSRV));
 	DX::CommandList->SetComputeRootDescriptorTable(
-		9, Descriptors::SV.GetGPUHandle(SWRShadowMapSRV));
+		8, Descriptors::SV.GetGPUHandle(SWRShadowMapSRV));
+	DX::CommandList->SetComputeRootDescriptorTable(
+		9, Descriptors::SV.GetGPUHandle(
+			CulledCommandsSRV +
+			DX::FrameIndex * PerFrameDescriptorsCount));
 	DX::CommandList->SetComputeRootDescriptorTable(
 		10, Descriptors::SV.GetGPUHandle(SWRRenderTargetUAV));
 	DX::CommandList->SetComputeRootDescriptorTable(
@@ -887,12 +775,12 @@ void SoftwareRasterization::_drawOpaque()
 	if (Settings::CullingEnabled)
 	{
 		DX::CommandList->ExecuteIndirect(
-			_triangleOpaqueCS.Get(),
-			Scene::CurrentScene->meshesMetaCPU.size(),
-			_culledCommands[DX::FrameIndex][0].Get(),
+			_dispatchCS.Get(),
+			1,
+			_renderer->GetCulledCommandsCounter(DX::FrameIndex, 0),
 			0,
-			_culledCommands[DX::FrameIndex][0].Get(),
-			_culledCommandsCounterOffset);
+			nullptr,
+			0);
 	}
 	else
 	{
@@ -916,29 +804,17 @@ void SoftwareRasterization::_drawOpaque()
 	barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(
 		_bigTriangles[0].Get(),
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-		D3D12_RESOURCE_STATE_COPY_SOURCE);
-	barriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(
-		_bigTrianglesDispatch[0].Get(),
-		D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
-		D3D12_RESOURCE_STATE_COPY_DEST);
-	DX::CommandList->ResourceBarrier(2, barriers);
-
-	_createBigTrianglesDispatch(0);
-
-	barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(
-		_bigTriangles[0].Get(),
-		D3D12_RESOURCE_STATE_COPY_SOURCE,
 		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 	barriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(
-		_bigTrianglesDispatch[0].Get(),
-		D3D12_RESOURCE_STATE_COPY_DEST,
+		_bigTrianglesCounters[0].Get(),
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 		D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
 	DX::CommandList->ResourceBarrier(2, barriers);
 
 	DX::CommandList->SetComputeRootSignature(_bigTriangleOpaqueRS.Get());
 	DX::CommandList->SetPipelineState(_bigTriangleOpaquePSO.Get());
 	DX::CommandList->SetComputeRootConstantBufferView(
-		SceneCB,
+		0,
 		_sceneCB->GetGPUVirtualAddress() + DX::FrameIndex * sizeof(SWRSceneCB));
 	DX::CommandList->SetComputeRootDescriptorTable(
 		1, Scene::CurrentScene->positionsGPU.GetSRV());
@@ -966,9 +842,9 @@ void SoftwareRasterization::_drawOpaque()
 		10, Descriptors::SV.GetGPUHandle(SWRRenderTargetUAV));
 
 	DX::CommandList->ExecuteIndirect(
-		_bigTrianglesCS.Get(),
+		_dispatchCS.Get(),
 		1,
-		_bigTrianglesDispatch[0].Get(),
+		_bigTrianglesCounters[0].Get(),
 		0,
 		nullptr,
 		0);
@@ -998,19 +874,6 @@ void SoftwareRasterization::_endFrame()
 		D3D12_RESOURCE_STATE_COPY_SOURCE,
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	DX::CommandList->ResourceBarrier(1, barriers);
-
-	if (Settings::CullingEnabled)
-	{
-		CD3DX12_RESOURCE_BARRIER barriers[Settings::FrustumsCount] = {};
-		for (UINT frustum = 0; frustum < Settings::FrustumsCount; frustum++)
-		{
-			barriers[frustum] = CD3DX12_RESOURCE_BARRIER::Transition(
-				_culledCommands[DX::FrameIndex][frustum].Get(),
-				D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
-				D3D12_RESOURCE_STATE_COPY_DEST);
-		}
-		DX::CommandList->ResourceBarrier(_countof(barriers), barriers);
-	}
 
 	UINT* result = nullptr;
 	ThrowIfFailed(
@@ -1083,27 +946,28 @@ void SoftwareRasterization::_drawIndexedInstanced(
 	INT baseVertexLocation,
 	UINT startInstanceLocation)
 {
-	UINT commandData[] =
-	{
-		indexCountPerInstance,
-		startIndexLocation,
-		baseVertexLocation,
-		startInstanceLocation
-	};
-	DX::CommandList->SetComputeRoot32BitConstants(
-		RootConstants,
-		_countof(commandData),
-		commandData,
-		0);
-
-	assert(indexCountPerInstance % 3 == 0);
-	UINT trianglesCount = indexCountPerInstance / 3;
-	DX::CommandList->Dispatch(
-		Utils::DispatchSize(
-			Settings::SWRTriangleThreadsX,
-			trianglesCount),
-		instanceCount,
-		1);
+	// TODO: restore it
+	//UINT commandData[] =
+	//{
+	//	indexCountPerInstance,
+	//	startIndexLocation,
+	//	baseVertexLocation,
+	//	startInstanceLocation
+	//};
+	//DX::CommandList->SetComputeRoot32BitConstants(
+	//	RootConstants,
+	//	_countof(commandData),
+	//	commandData,
+	//	0);
+	//
+	//assert(indexCountPerInstance % 3 == 0);
+	//UINT trianglesCount = indexCountPerInstance / 3;
+	//DX::CommandList->Dispatch(
+	//	Utils::DispatchSize(
+	//		Settings::SWRTriangleThreadsX,
+	//		trianglesCount),
+	//	instanceCount,
+	//	1);
 }
 
 void SoftwareRasterization::_clearStatistics()
@@ -1119,22 +983,10 @@ void SoftwareRasterization::_clearStatistics()
 void SoftwareRasterization::_clearBigTrianglesCounter(UINT frustum)
 {
 	DX::CommandList->CopyBufferRegion(
-		_bigTriangles[frustum].Get(),
-		_bigTrianglesCounterOffset[frustum],
+		_bigTrianglesCounters[frustum].Get(),
+		0,
 		_counterReset.Get(),
 		0,
-		sizeof(UINT));
-}
-
-void SoftwareRasterization::_createBigTrianglesDispatch(UINT frustum)
-{
-	// counter is equal to amount of big triangles to rasterize
-	// that much groups on X dimension should be dispatched
-	DX::CommandList->CopyBufferRegion(
-		_bigTrianglesDispatch[frustum].Get(),
-		0, // X comes first
-		_bigTriangles[frustum].Get(),
-		_bigTrianglesCounterOffset[frustum],
 		sizeof(UINT));
 }
 
@@ -1280,44 +1132,48 @@ void SoftwareRasterization::_createResetBuffer()
 void SoftwareRasterization::_createTriangleDepthPSO()
 {
 	CD3DX12_ROOT_PARAMETER1 computeRootParameters[9] = {};
-	computeRootParameters[SceneCB].InitAsConstantBufferView(0);
-	computeRootParameters[RootConstants].InitAsConstants(4, 1);
-	CD3DX12_DESCRIPTOR_RANGE1 ranges[7] = {};
+	computeRootParameters[0].InitAsConstantBufferView(0);
+	CD3DX12_DESCRIPTOR_RANGE1 ranges[8] = {};
 	ranges[0].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
 		0);
-	computeRootParameters[2].InitAsDescriptorTable(1, &ranges[0]);
+	computeRootParameters[1].InitAsDescriptorTable(1, &ranges[0]);
 	ranges[1].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
 		8);
-	computeRootParameters[3].InitAsDescriptorTable(1, &ranges[1]);
+	computeRootParameters[2].InitAsDescriptorTable(1, &ranges[1]);
 	ranges[2].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
 		9);
-	computeRootParameters[4].InitAsDescriptorTable(1, &ranges[2]);
+	computeRootParameters[3].InitAsDescriptorTable(1, &ranges[2]);
 	ranges[3].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
 		10);
-	computeRootParameters[5].InitAsDescriptorTable(1, &ranges[3]);
+	computeRootParameters[4].InitAsDescriptorTable(1, &ranges[3]);
 	ranges[4].Init(
-		D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
+		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
-		0);
-	computeRootParameters[6].InitAsDescriptorTable(1, &ranges[4]);
+		12);
+	computeRootParameters[5].InitAsDescriptorTable(1, &ranges[4]);
 	ranges[5].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
 		1,
-		1);
-	computeRootParameters[7].InitAsDescriptorTable(1, &ranges[5]);
+		0);
+	computeRootParameters[6].InitAsDescriptorTable(1, &ranges[5]);
 	ranges[6].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
 		1,
+		1);
+	computeRootParameters[7].InitAsDescriptorTable(1, &ranges[6]);
+	ranges[7].Init(
+		D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
+		1,
 		2);
-	computeRootParameters[8].InitAsDescriptorTable(1, &ranges[6]);
+	computeRootParameters[8].InitAsDescriptorTable(1, &ranges[7]);
 
 	CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC computeRootSignatureDesc;
 	computeRootSignatureDesc.Init_1_1(
@@ -1351,7 +1207,7 @@ void SoftwareRasterization::_createTriangleDepthPSO()
 void SoftwareRasterization::_createBigTriangleDepthPSO()
 {
 	CD3DX12_ROOT_PARAMETER1 computeRootParameters[6] = {};
-	computeRootParameters[SceneCB].InitAsConstantBufferView(0);
+	computeRootParameters[0].InitAsConstantBufferView(0);
 	CD3DX12_DESCRIPTOR_RANGE1 ranges[5] = {};
 	ranges[0].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
@@ -1409,64 +1265,68 @@ void SoftwareRasterization::_createBigTriangleDepthPSO()
 void SoftwareRasterization::_createTriangleOpaquePSO()
 {
 	CD3DX12_ROOT_PARAMETER1 computeRootParameters[13] = {};
-	computeRootParameters[SceneCB].InitAsConstantBufferView(0);
-	computeRootParameters[RootConstants].InitAsConstants(4, 1);
-	CD3DX12_DESCRIPTOR_RANGE1 ranges[11] = {};
+	computeRootParameters[0].InitAsConstantBufferView(0);
+	CD3DX12_DESCRIPTOR_RANGE1 ranges[12] = {};
 	ranges[0].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
 		0);
-	computeRootParameters[2].InitAsDescriptorTable(1, &ranges[0]);
+	computeRootParameters[1].InitAsDescriptorTable(1, &ranges[0]);
 	ranges[1].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
 		1);
-	computeRootParameters[3].InitAsDescriptorTable(1, &ranges[1]);
+	computeRootParameters[2].InitAsDescriptorTable(1, &ranges[1]);
 	ranges[2].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
 		2);
-	computeRootParameters[4].InitAsDescriptorTable(1, &ranges[2]);
+	computeRootParameters[3].InitAsDescriptorTable(1, &ranges[2]);
 	ranges[3].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
 		3);
-	computeRootParameters[5].InitAsDescriptorTable(1, &ranges[3]);
+	computeRootParameters[4].InitAsDescriptorTable(1, &ranges[3]);
 	ranges[4].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
 		8);
-	computeRootParameters[6].InitAsDescriptorTable(1, &ranges[4]);
+	computeRootParameters[5].InitAsDescriptorTable(1, &ranges[4]);
 	ranges[5].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
 		9);
-	computeRootParameters[7].InitAsDescriptorTable(1, &ranges[5]);
+	computeRootParameters[6].InitAsDescriptorTable(1, &ranges[5]);
 	ranges[6].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
 		10);
-	computeRootParameters[8].InitAsDescriptorTable(1, &ranges[6]);
+	computeRootParameters[7].InitAsDescriptorTable(1, &ranges[6]);
 	ranges[7].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
 		11);
-	computeRootParameters[9].InitAsDescriptorTable(1, &ranges[7]);
+	computeRootParameters[8].InitAsDescriptorTable(1, &ranges[7]);
 	ranges[8].Init(
-		D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
+		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
-		0);
-	computeRootParameters[10].InitAsDescriptorTable(1, &ranges[8]);
+		12);
+	computeRootParameters[9].InitAsDescriptorTable(1, &ranges[8]);
 	ranges[9].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
 		1,
-		1);
-	computeRootParameters[11].InitAsDescriptorTable(1, &ranges[9]);
+		0);
+	computeRootParameters[10].InitAsDescriptorTable(1, &ranges[9]);
 	ranges[10].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
 		1,
+		1);
+	computeRootParameters[11].InitAsDescriptorTable(1, &ranges[10]);
+	ranges[11].Init(
+		D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
+		1,
 		2);
-	computeRootParameters[12].InitAsDescriptorTable(1, &ranges[10]);
+	computeRootParameters[12].InitAsDescriptorTable(1, &ranges[11]);
 
 	D3D12_STATIC_SAMPLER_DESC samplers[2] = {};
 	D3D12_STATIC_SAMPLER_DESC* pointClampSampler = &samplers[0];
@@ -1526,7 +1386,7 @@ void SoftwareRasterization::_createTriangleOpaquePSO()
 void SoftwareRasterization::_createBigTriangleOpaquePSO()
 {
 	CD3DX12_ROOT_PARAMETER1 computeRootParameters[11] = {};
-	computeRootParameters[SceneCB].InitAsConstantBufferView(0);
+	computeRootParameters[0].InitAsConstantBufferView(0);
 	CD3DX12_DESCRIPTOR_RANGE1 ranges[10] = {};
 	ranges[0].Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,

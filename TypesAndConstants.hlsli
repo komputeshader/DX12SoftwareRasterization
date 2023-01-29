@@ -101,22 +101,10 @@ struct DrawIndexedArguments
 	uint startInstanceLocation;
 };
 
-struct DispatchArguments
+struct IndirectCommand
 {
-	uint threadGroupCountX;
-	uint threadGroupCountY;
-	uint threadGroupCountZ;
-};
-
-struct TriangleCommand
-{
-	// root constants
-	uint indexCountPerInstance;
-	uint startIndexLocation;
-	int baseVertexLocation;
 	uint startInstanceLocation;
-
-	DispatchArguments args;
+	DrawIndexedArguments args;
 };
 
 struct BigTriangle

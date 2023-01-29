@@ -189,7 +189,8 @@ void CreateDefaultHeapBuffer(
 	UINT64 bufferSize,
 	ComPtr<ID3D12Resource>& defaultBuffer,
 	ComPtr<ID3D12Resource>& uploadBuffer,
-	D3D12_RESOURCE_STATES endState)
+	D3D12_RESOURCE_STATES endState,
+	bool unorderedAccess)
 {
 	{
 		auto prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
@@ -206,7 +207,11 @@ void CreateDefaultHeapBuffer(
 
 	{
 		auto prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-		auto desc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize);
+		auto desc = unorderedAccess
+			? CD3DX12_RESOURCE_DESC::Buffer(
+				bufferSize,
+				D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)
+			: CD3DX12_RESOURCE_DESC::Buffer(bufferSize);
 		ThrowIfFailed(
 			DX::Device->CreateCommittedResource(
 				&prop,

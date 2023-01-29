@@ -8,12 +8,6 @@
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
 
-struct IndirectCommand
-{
-	UINT startInstanceLocation;
-	D3D12_DRAW_INDEXED_ARGUMENTS arguments;
-};
-
 ForwardRenderer::ForwardRenderer(
 	UINT width,
 	UINT height,
@@ -36,6 +30,7 @@ void ForwardRenderer::OnInit()
 	Scene::BuddhaScene.LoadBuddha();
 	_createVisibleInstancesBuffer();
 	_createDepthBufferResources();
+	_createCulledCommandsBuffers();
 	_loadAssets();
 
 	_timer.Reset();
@@ -170,6 +165,91 @@ void ForwardRenderer::_createVisibleInstancesBuffer()
 				&UAVDesc,
 				Descriptors::SV.GetCPUHandle(
 					VisibleInstancesUAV + frustum +
+					frame * PerFrameDescriptorsCount));
+		}
+	}
+}
+
+void ForwardRenderer::_createCulledCommandsBuffers()
+{
+	CD3DX12_RESOURCE_DESC commandBufferDesc =
+		CD3DX12_RESOURCE_DESC::Buffer(
+			Scene::MaxSceneMeshesMetaCount * sizeof(IndirectCommand),
+			D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+	auto prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+
+	D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc = {};
+	UAVDesc.Format = DXGI_FORMAT_UNKNOWN;
+	UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+	UAVDesc.Buffer.FirstElement = 0;
+	UAVDesc.Buffer.NumElements = Scene::MaxSceneMeshesMetaCount;
+	UAVDesc.Buffer.StructureByteStride = sizeof(IndirectCommand);
+	UAVDesc.Buffer.CounterOffsetInBytes = 0;
+	UAVDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
+	SRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	SRVDesc.Format = DXGI_FORMAT_UNKNOWN;
+	SRVDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+	SRVDesc.Buffer.FirstElement = 0;
+	SRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+	SRVDesc.Buffer.NumElements = Scene::MaxSceneMeshesMetaCount;
+	SRVDesc.Buffer.StructureByteStride = sizeof(IndirectCommand);
+
+	D3D12_DISPATCH_ARGUMENTS dispatch;
+	dispatch.ThreadGroupCountX = 1;
+	dispatch.ThreadGroupCountY = 1;
+	dispatch.ThreadGroupCountZ = 1;
+
+	for (UINT frame = 0; frame < DX::FramesCount; frame++)
+	{
+		for (UINT frustum = 0; frustum < Settings::FrustumsCount; frustum++)
+		{
+			Utils::CreateDefaultHeapBuffer(
+				DX::CommandList.Get(),
+				&dispatch,
+				sizeof(D3D12_DISPATCH_ARGUMENTS),
+				_culledCommandsCounters[frame][frustum],
+				_culledCommandsCountersUpload[frame][frustum],
+				D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
+				true);
+			SetNameIndexed(
+				_culledCommandsCounters[frame][frustum].Get(),
+				L"_culledCommandsCounters",
+				frame * Settings::FrustumsCount + frustum);
+			SetNameIndexed(
+				_culledCommandsCountersUpload[frame][frustum].Get(),
+				L"_culledCommandsCountersUpload",
+				frame * Settings::FrustumsCount + frustum);
+
+			ThrowIfFailed(
+				DX::Device->CreateCommittedResource(
+					&prop,
+					D3D12_HEAP_FLAG_NONE,
+					&commandBufferDesc,
+					Settings::SWREnabled
+					? D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE
+					: D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
+					nullptr,
+					IID_PPV_ARGS(&_culledCommands[frame][frustum])));
+			SetNameIndexed(
+				_culledCommands[frame][frustum].Get(),
+				L"_culledCommands",
+				frame * Settings::FrustumsCount + frustum);
+
+			DX::Device->CreateUnorderedAccessView(
+				_culledCommands[frame][frustum].Get(),
+				_culledCommandsCounters[frame][frustum].Get(),
+				&UAVDesc,
+				Descriptors::SV.GetCPUHandle(
+					CulledCommandsUAV + frustum +
+					frame * PerFrameDescriptorsCount));
+
+			DX::Device->CreateShaderResourceView(
+				_culledCommands[frame][frustum].Get(),
+				&SRVDesc,
+				Descriptors::SV.GetCPUHandle(
+					CulledCommandsSRV + frustum +
 					frame * PerFrameDescriptorsCount));
 		}
 	}
@@ -388,12 +468,8 @@ void ForwardRenderer::OnRender()
 		_culler->Cull(
 			DX::ComputeCommandList.Get(),
 			_visibleInstances[DX::FrameIndex],
-			Settings::SWREnabled
-			? _SWR->GetCulledCommands(DX::FrameIndex)
-			: _HWR->GetCulledCommands(DX::FrameIndex),
-			Settings::SWREnabled
-			? _SWR->GetCulledCommandsCounterOffset()
-			: _HWR->GetCulledCommandsCounterOffset());
+			_culledCommands[DX::FrameIndex],
+			_culledCommandsCounters[DX::FrameIndex]);
 	}
 	_stats->BeginMeasure(DX::CommandList.Get());
 	if (Settings::SWREnabled)

@@ -1,11 +1,5 @@
 #include "Common.hlsli"
 
-struct IndirectCommand
-{
-	uint startInstanceLocation;
-	DrawIndexedArguments args;
-};
-
 cbuffer CullingCB : register(b0)
 {
 	uint TotalInstancesCount;

@@ -96,6 +96,12 @@ struct Instance
 	DirectX::XMFLOAT3 color;
 };
 
+struct IndirectCommand
+{
+	UINT startInstanceLocation;
+	D3D12_DRAW_INDEXED_ARGUMENTS arguments;
+};
+
 struct DepthSceneCB
 {
 	DirectX::XMFLOAT4X4 VP;
