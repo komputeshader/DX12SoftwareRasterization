@@ -17,7 +17,6 @@ Demo attemps to distribute load over threads  with the notion of big triangle - 
 * More advanced rasterization algorithm.
 * Material system and texturing support.
 * Partial derivatives for software rasterizer.
-* Geometry meshletization and meshlets culling.
 
 # Papers and other resources used:
 * [A Parallel Algorithm for Polygon Rasterization](https://www.cs.drexel.edu/~david/Classes/Papers/comp175-06-pineda.pdf)
