@@ -8,6 +8,35 @@ uint DispatchSize(uint groupSize, uint elementsCount)
 	return (elementsCount + groupSize - 1) / groupSize;
 }
 
+float3 UnpackPosition(in uint2 packed)
+{
+	return f16tof32(uint3(
+		packed.x >> 16,
+		packed.x,
+		packed.y >> 16));
+}
+
+float3 UnpackPosition(in VertexPosition packed)
+{
+	return UnpackPosition(packed.packedPosition);
+}
+
+float3 UnpackNormal(in uint packed)
+{
+	// 1 / (2 ^ N - 1), N = 10, see Scene.cpp normal packing
+	float denom = 1.0 / 1023.0;
+
+	return float3(
+		uint((packed >> 20) & 0x3FF),
+		uint((packed >> 10) & 0x3FF),
+		uint(packed & 0x3FF)) * denom * 2.0 - 1.0.xxx;
+}
+
+float3 UnpackNormal(in VertexNormal packed)
+{
+	return UnpackNormal(packed.normal);
+}
+
 AABB TransformAABB(
 	in AABB box,
 	in float4x4 M)

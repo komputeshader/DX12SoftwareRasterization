@@ -151,9 +151,9 @@ void Scene::_loadObj(
 		facesCount += currentShapeFacesCount;
 
 		// read mesh data
-		std::vector<VertexPosition> unindexedPositions;
+		std::vector<XMFLOAT3> unindexedPositions;
 		unindexedPositions.reserve(currentShapeFacesCount * 3);
-		std::vector<VertexNormal> unindexedNormals;
+		std::vector<XMFLOAT3> unindexedNormals;
 		unindexedNormals.reserve(currentShapeFacesCount * 3);
 		std::vector<VertexColor> unindexedColors;
 		unindexedColors.reserve(currentShapeFacesCount * 3);
@@ -181,40 +181,47 @@ void Scene::_loadObj(
 			}
 
 			// Loop over vertices in the face.
-			VertexPosition tmpPosition = {};
-			VertexNormal tmpNormal = {};
+			XMFLOAT3 tmpPosition = {};
+			XMFLOAT3 tmpNormal = {};
 			VertexColor tmpColor = {};
 			VertexUV tmpUV = {};
 			for (size_t v = 0; v < fv; v++)
 			{
 				auto idx = shapes[s].mesh.indices[index_offset + v];
-				tmpPosition.position =
+				tmpPosition =
 				{
 					attrib.positions[3 * size_t(idx.position_index) + 0],
 					attrib.positions[3 * size_t(idx.position_index) + 1],
 					attrib.positions[3 * size_t(idx.position_index) + 2]
 				};
 
-				tmpPosition.position.x *= scale;
-				tmpPosition.position.y *= scale;
-				tmpPosition.position.z *= scale;
+				tmpPosition.x *= scale;
+				tmpPosition.y *= scale;
+				tmpPosition.z *= scale;
+
+				unindexedPositions.push_back(tmpPosition);
 
 				min = XMVectorMin(
 					min,
-					XMLoadFloat3(&tmpPosition.position));
+					XMLoadFloat3(&tmpPosition));
 				max = XMVectorMax(
 					max,
-					XMLoadFloat3(&tmpPosition.position));
+					XMLoadFloat3(&tmpPosition));
 
 				// Check if `normal_index` is zero or positive. negative = no normal data
 				if (idx.normal_index >= 0)
 				{
-					tmpNormal.normal =
+					tmpNormal =
 					{
 						attrib.normals[3 * size_t(idx.normal_index) + 0],
 						attrib.normals[3 * size_t(idx.normal_index) + 1],
 						attrib.normals[3 * size_t(idx.normal_index) + 2]
 					};
+					XMStoreFloat3(
+						&tmpNormal,
+						XMVector3Normalize(XMLoadFloat3(&tmpNormal)));
+
+					unindexedNormals.push_back(tmpNormal);
 				}
 
 				// Check if `texcoord_index` is zero or positive. negative = no texcoord data
@@ -225,14 +232,11 @@ void Scene::_loadObj(
 						attrib.texcoords[2 * size_t(idx.texcoord_index) + 0],
 						attrib.texcoords[2 * size_t(idx.texcoord_index) + 1]
 					};
+					unindexedUVs.push_back(tmpUV);
 				}
 
 				tmpColor.color = faceDiffuse;
-
-				unindexedPositions.push_back(tmpPosition);
-				unindexedNormals.push_back(tmpNormal);
 				unindexedColors.push_back(tmpColor);
-				unindexedUVs.push_back(tmpUV);
 			}
 
 			index_offset += fv;
@@ -246,12 +250,12 @@ void Scene::_loadObj(
 		{
 			{
 				unindexedPositions.data(),
-				sizeof(decltype(unindexedPositions)::value_type::position),
+				sizeof(decltype(unindexedPositions)::value_type),
 				sizeof(decltype(unindexedPositions)::value_type)
 			},
 			{
 				unindexedNormals.data(),
-				sizeof(decltype(unindexedNormals)::value_type::normal),
+				sizeof(decltype(unindexedNormals)::value_type),
 				sizeof(decltype(unindexedNormals)::value_type)
 			},
 			{
@@ -294,16 +298,16 @@ void Scene::_loadObj(
 			indexCount,
 			remap.data());
 		meshopt_remapVertexBuffer(
-			positionsCPU.data() + positionsCPUOldSize,
+			unindexedPositions.data(),
 			unindexedPositions.data(),
 			unindexedPositions.size(),
-			sizeof(decltype(positionsCPU)::value_type),
+			sizeof(decltype(unindexedPositions)::value_type),
 			remap.data());
 		meshopt_remapVertexBuffer(
-			normalsCPU.data() + normalsCPUOldSize,
+			unindexedNormals.data(),
 			unindexedNormals.data(),
 			unindexedNormals.size(),
-			sizeof(decltype(normalsCPU)::value_type),
+			sizeof(decltype(unindexedNormals)::value_type),
 			remap.data());
 		meshopt_remapVertexBuffer(
 			colorsCPU.data() + colorsCPUOldSize,
@@ -327,6 +331,7 @@ void Scene::_loadObj(
 		// generate meshlets for more efficient culling
 		// not for use with mesh shaders
 		const UINT64 maxVertices = 128;
+		// should be in sync with SWRTriangleThreadsX
 		const UINT64 maxTriangles = 256;
 		// 0.0 had better results overall
 		const float coneWeight = 0.0f;
@@ -347,9 +352,9 @@ void Scene::_loadObj(
 			meshletTriangles.data(),
 			indicesCPU.data() + indicesCPUOldSize,
 			indexCount,
-			reinterpret_cast<float*>(positionsCPU.data() + positionsCPUOldSize),
+			reinterpret_cast<float*>(unindexedPositions.data()),
 			uniqueVertexCount,
-			sizeof(decltype(positionsCPU)::value_type),
+			sizeof(decltype(unindexedPositions)::value_type),
 			maxVertices,
 			maxTriangles,
 			coneWeight);
@@ -371,10 +376,9 @@ void Scene::_loadObj(
 				&meshletVertices[meshlet.vertex_offset],
 				&meshletTriangles[meshlet.triangle_offset],
 				meshlet.triangle_count,
-				reinterpret_cast<float*>(positionsCPU.data() +
-					positionsCPUOldSize),
+				reinterpret_cast<float*>(unindexedPositions.data()),
 				uniqueVertexCount,
-				sizeof(decltype(positionsCPU)::value_type));
+				sizeof(decltype(unindexedPositions)::value_type));
 			memcpy(
 				&mesh.AABB.center,
 				&bounds.center,
@@ -404,13 +408,15 @@ void Scene::_loadObj(
 
 			meshesMeta.push_back(mesh);
 
-			for (UINT v = 0; v < meshlet.triangle_count * 3; v++)
+			for (UINT vertex = 0; vertex < meshlet.triangle_count * 3; vertex++)
 			{
-				indicesCPU[indicesCPUOldSize++] =
+				indicesCPU[indicesCPUOldSize + vertex] =
 					meshletVertices[
 						meshlet.vertex_offset + meshletTriangles[
-							meshlet.triangle_offset + v]];
+							meshlet.triangle_offset + vertex]];
 			}
+
+			indicesCPUOldSize += meshlet.triangle_count * 3;
 		}
 #else
 		MeshMeta mesh = {};
@@ -427,6 +433,23 @@ void Scene::_loadObj(
 
 		objectMin = XMVectorMin(objectMin, min);
 		objectMax = XMVectorMax(objectMax, max);
+
+		// pack vertex attributes
+		for (UINT vertex = 0; vertex < uniqueVertexCount; vertex++)
+		{
+			auto& dstPos = positionsCPU[positionsCPUOldSize + vertex].position;
+			auto& srcPos = unindexedPositions[vertex];
+			dstPos.x |= UINT(meshopt_quantizeHalf(srcPos.x)) << 16;
+			dstPos.x |= UINT(meshopt_quantizeHalf(srcPos.y));
+			dstPos.y |= UINT(meshopt_quantizeHalf(srcPos.z)) << 16;
+
+			auto& dstN = normalsCPU[normalsCPUOldSize + vertex].normal;
+			auto& srcN = unindexedNormals[vertex];
+			dstN =
+				(meshopt_quantizeUnorm(srcN.x * 0.5f + 0.5f, 10) << 20) |
+				(meshopt_quantizeUnorm(srcN.y * 0.5f + 0.5f, 10) << 10) |
+				meshopt_quantizeUnorm(srcN.z * 0.5f + 0.5f, 10);
+		}
 	}
 
 	AABB objectBoundingVolume;

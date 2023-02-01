@@ -20,22 +20,23 @@ static const uint SWRTriangleThreadsX = 256;
 static const uint SWRTriangleThreadsY = 1;
 static const uint SWRTriangleThreadsZ = 1;
 
-static const uint HiZThreadsX = 8;
-static const uint HiZThreadsY = 8;
+static const uint HiZThreadsX = 16;
+static const uint HiZThreadsY = 16;
 static const uint HiZThreadsZ = 1;
 
 // https://developer.nvidia.com/content/understanding-structured-buffer-performance
 
 struct VertexPosition
 {
-	float3 position;
-	float pad;
+	// .x : |16 bits - x component|16 bits - y component|
+	// .y : |16 bits - z component|16 bits - unused     |
+	uint2 packedPosition;
 };
 
 struct VertexNormal
 {
-	float3 normal;
-	float pad;
+	// | 2 bits - unused |10 bits - x |10 bits - y |10 bits - z |
+	uint normal;
 };
 
 struct VertexColor

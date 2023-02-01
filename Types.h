@@ -22,14 +22,15 @@ static const DirectX::XMFLOAT4X4 Identity4x4 =
 
 struct VertexPosition
 {
-	DirectX::XMFLOAT3 position;
-	float pad;
+	// .x : |16 bits - x component|16 bits - y component|
+	// .y : |16 bits - z component|16 bits - unused     |
+	DirectX::XMUINT2 position;
 };
 
 struct VertexNormal
 {
-	DirectX::XMFLOAT3 normal;
-	float pad;
+	// | 2 bits - unused |10 bits - x |10 bits - y |10 bits - z |
+	UINT normal;
 };
 
 struct VertexColor

@@ -1,4 +1,4 @@
-#include "TypesAndConstants.hlsli"
+#include "Common.hlsli"
 
 cbuffer DepthSceneCB : register(b0)
 {
@@ -12,7 +12,7 @@ cbuffer DrawCallConstants : register(b1)
 
 struct VSInput
 {
-	float3 position : POSITION;
+	uint2 position : POSITION;
 };
 
 struct VSOutput
@@ -28,7 +28,7 @@ VSOutput main(VSInput input, uint instanceID : SV_InstanceID)
 
 	float4 positionWS = mul(
 		Instances[StartInstanceLocation + instanceID].worldTransform,
-		float4(input.position, 1.0));
+		float4(UnpackPosition(input.position), 1.0));
 	result.positionCS = mul(VP, positionWS);
 
 	return result;

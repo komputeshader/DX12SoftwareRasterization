@@ -645,7 +645,10 @@ void ForwardRenderer::_moveToNextFrame()
 {
 	// Schedule a Signal command in the queue.
 	const UINT64 currentFenceValue = DX::FenceValues[DX::FrameIndex];
-	ThrowIfFailed(DX::CommandQueue->Signal(DX::Fence.Get(), currentFenceValue));
+	ThrowIfFailed(
+		DX::CommandQueue->Signal(
+			DX::Fence.Get(),
+			currentFenceValue));
 
 	// Update the frame index.
 	DX::FrameIndex = _swapChain->GetCurrentBackBufferIndex();

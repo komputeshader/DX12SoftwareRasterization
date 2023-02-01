@@ -52,8 +52,8 @@ public:
     static const UINT SWRTriangleThreadsY = 1;
     static const UINT SWRTriangleThreadsZ = 1;
 
-    static const UINT HiZThreadsX = 8;
-    static const UINT HiZThreadsY = 8;
+    static const UINT HiZThreadsX = 16;
+    static const UINT HiZThreadsY = 16;
     static const UINT HiZThreadsZ = 1;
 
 };

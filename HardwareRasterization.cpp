@@ -508,7 +508,7 @@ void HardwareRasterization::_createDepthPassPSO()
 		{
 			"POSITION",
 			0,
-			DXGI_FORMAT_R32G32B32_FLOAT,
+			DXGI_FORMAT_R32G32_UINT,
 			0,
 			0,
 			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
@@ -564,7 +564,7 @@ void HardwareRasterization::_createOpaquePassPSO()
 		{
 			"POSITION",
 			0,
-			DXGI_FORMAT_R32G32B32_FLOAT,
+			DXGI_FORMAT_R32G32_UINT,
 			0,
 			0,
 			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
@@ -573,7 +573,7 @@ void HardwareRasterization::_createOpaquePassPSO()
 		{
 			"NORMAL",
 			0,
-			DXGI_FORMAT_R32G32B32_FLOAT,
+			DXGI_FORMAT_R32_UINT,
 			1,
 			0,
 			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,

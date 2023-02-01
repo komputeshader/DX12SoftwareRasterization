@@ -383,11 +383,9 @@ void GenerateHiZ(
 			constants,
 			0);
 		commandList->SetComputeRootDescriptorTable(
-			1,
-			Descriptors::SV.GetGPUHandle(startSRV + mip - 1));
+			1, Descriptors::SV.GetGPUHandle(startSRV + mip - 1));
 		commandList->SetComputeRootDescriptorTable(
-			2,
-			Descriptors::SV.GetGPUHandle(startUAV + mip));
+			2, Descriptors::SV.GetGPUHandle(startUAV + mip));
 
 		commandList->Dispatch(
 			DispatchSize(Settings::HiZThreadsX, outputWidth),

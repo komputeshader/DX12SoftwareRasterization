@@ -23,63 +23,63 @@ void EdgeFunction(
 
 void GetTriangleIndices(
 	in uint startIndexLocation,
-	out uint v0Idx,
-	out uint v1Idx,
-	out uint v2Idx)
+	out uint i0,
+	out uint i1,
+	out uint i2)
 {
-	v0Idx = Indices[startIndexLocation + 0];
-	v1Idx = Indices[startIndexLocation + 1];
-	v2Idx = Indices[startIndexLocation + 2];
+	i0 = Indices[startIndexLocation + 0];
+	i1 = Indices[startIndexLocation + 1];
+	i2 = Indices[startIndexLocation + 2];
 }
 
 void GetTriangleVertexPositions(
-	in uint v0Idx, in uint v1Idx, in uint v2Idx,
+	in uint i0, in uint i1, in uint i2,
 	in uint baseVertexLocation,
-	out float3 v0P,
-	out float3 v1P,
-	out float3 v2P)
+	out float3 p0,
+	out float3 p1,
+	out float3 p2)
 {
-	v0P = Positions[baseVertexLocation + v0Idx].position;
-	v1P = Positions[baseVertexLocation + v1Idx].position;
-	v2P = Positions[baseVertexLocation + v2Idx].position;
+	p0 = UnpackPosition(Positions[baseVertexLocation + i0]);
+	p1 = UnpackPosition(Positions[baseVertexLocation + i1]);
+	p2 = UnpackPosition(Positions[baseVertexLocation + i2]);
 }
 
 #ifdef OPAQUE
 
 void GetTriangleVertexNormals(
-	in uint v0Idx, in uint v1Idx, in uint v2Idx,
+	in uint i0, in uint i1, in uint i2,
 	in uint baseVertexLocation,
-	out float3 v0N,
-	out float3 v1N,
-	out float3 v2N)
+	out float3 n0,
+	out float3 n1,
+	out float3 n2)
 {
-	v0N = Normals[baseVertexLocation + v0Idx].normal;
-	v1N = Normals[baseVertexLocation + v1Idx].normal;
-	v2N = Normals[baseVertexLocation + v2Idx].normal;
+	n0 = UnpackNormal(Normals[baseVertexLocation + i0]);
+	n1 = UnpackNormal(Normals[baseVertexLocation + i1]);
+	n2 = UnpackNormal(Normals[baseVertexLocation + i2]);
 }
 
 void GetTriangleVertexColors(
-	in uint v0Idx, in uint v1Idx, in uint v2Idx,
+	in uint i0, in uint i1, in uint i2,
 	in uint baseVertexLocation,
-	out float3 v0C,
-	out float3 v1C,
-	out float3 v2C)
+	out float3 c0,
+	out float3 c1,
+	out float3 c2)
 {
-	v0C = Colors[baseVertexLocation + v0Idx].color;
-	v1C = Colors[baseVertexLocation + v1Idx].color;
-	v2C = Colors[baseVertexLocation + v2Idx].color;
+	c0 = Colors[baseVertexLocation + i0].color;
+	c1 = Colors[baseVertexLocation + i1].color;
+	c2 = Colors[baseVertexLocation + i2].color;
 }
 
 void GetTriangleVertexUVs(
-	in uint v0Idx, in uint v1Idx, in uint v2Idx,
+	in uint i0, in uint i1, in uint i2,
 	in uint baseVertexLocation,
-	out float2 v0UV,
-	out float2 v1UV,
-	out float2 v2UV)
+	out float2 UV0,
+	out float2 UV1,
+	out float2 UV2)
 {
-	v0UV = UVs[baseVertexLocation + v0Idx].uv;
-	v1UV = UVs[baseVertexLocation + v1Idx].uv;
-	v2UV = UVs[baseVertexLocation + v2Idx].uv;
+	UV0 = UVs[baseVertexLocation + i0].uv;
+	UV1 = UVs[baseVertexLocation + i1].uv;
+	UV2 = UVs[baseVertexLocation + i2].uv;
 }
 
 #endif // OPAQUE
