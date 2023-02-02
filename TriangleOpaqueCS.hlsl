@@ -252,15 +252,15 @@ void main(
 							weight2 * n2 * invW2);
 						N = normalize(N);
 
-						float3 c0, c1, c2;
+						float4 c0, c1, c2;
 						GetTriangleVertexColors(
 							i0, i1, i2,
 							BaseVertexLocation,
 							c0, c1, c2);
 						float3 color = denom * (
-							weight0 * c0 * invW0 +
-							weight1 * c1 * invW1 +
-							weight2 * c2 * invW2);
+							weight0 * c0.rgb * invW0 +
+							weight1 * c1.rgb * invW1 +
+							weight2 * c2.rgb * invW2);
 						if (ShowMeshlets)
 						{
 							color = instance.color;

@@ -21,8 +21,8 @@ struct VSInput
 {
 	uint2 position : POSITION;
 	uint normal : NORMAL;
-	float3 color : COLOR;
-	float2 uv : TEXCOORD0;
+	uint2 color : COLOR;
+	uint uv : TEXCOORD0;
 };
 
 struct VSOutput
@@ -49,7 +49,7 @@ VSOutput main(VSInput input, uint instanceID : SV_InstanceID)
 	result.positionCS = mul(VP, float4(result.positionWS, 1.0));
 	result.linearDepth = result.positionCS.w;
 	result.normal = UnpackNormal(input.normal);
-	result.color = float4(input.color, 1.0);
+	result.color = UnpackColor(input.color);
 	if (ShowMeshlets)
 	{
 		result.color = float4(instance.color, 1.0);

@@ -28,27 +28,28 @@ static const uint HiZThreadsZ = 1;
 
 struct VertexPosition
 {
-	// .x : |16 bits - x component|16 bits - y component|
-	// .y : |16 bits - z component|16 bits - unused     |
+	// .x : | 16 bits - x component | 16 bits - y component |
+	// .y : | 16 bits - z component | 16 bits - unused      |
 	uint2 packedPosition;
 };
 
 struct VertexNormal
 {
-	// | 2 bits - unused |10 bits - x |10 bits - y |10 bits - z |
-	uint normal;
+	// | 2 bits - unused | 10 bits - x | 10 bits - y | 10 bits - z |
+	uint packedNormal;
 };
 
 struct VertexColor
 {
-	float3 color;
-	float pad;
+	// .x : |16 bits - r component | 16 bits - g component |
+	// .y : |16 bits - b component | 16 bits - a component |
+	uint2 packedColor;
 };
 
 struct VertexUV
 {
-	float2 uv;
-	float2 pad;
+	// | 16 bits - u | 16 bits - v |
+	uint packedUV;
 };
 
 struct Frustum

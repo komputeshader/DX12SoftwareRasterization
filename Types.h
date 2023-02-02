@@ -22,27 +22,28 @@ static const DirectX::XMFLOAT4X4 Identity4x4 =
 
 struct VertexPosition
 {
-	// .x : |16 bits - x component|16 bits - y component|
-	// .y : |16 bits - z component|16 bits - unused     |
-	DirectX::XMUINT2 position;
+	// .x : |16 bits - x component | 16 bits - y component |
+	// .y : |16 bits - z component | 16 bits - unused      |
+	DirectX::XMUINT2 packedPosition;
 };
 
 struct VertexNormal
 {
-	// | 2 bits - unused |10 bits - x |10 bits - y |10 bits - z |
-	UINT normal;
+	// | 2 bits - unused | 10 bits - x | 10 bits - y | 10 bits - z |
+	UINT packedNormal;
 };
 
 struct VertexColor
 {
-	DirectX::XMFLOAT3 color;
-	float pad;
+	// .x : |16 bits - r component | 16 bits - g component |
+	// .y : |16 bits - b component | 16 bits - a component |
+	DirectX::XMUINT2 packedColor;
 };
 
 struct VertexUV
 {
-	DirectX::XMFLOAT2 uv;
-	DirectX::XMFLOAT2 pad;
+	// | 16 bits - u | 16 bits - v |
+	UINT packedUV;
 };
 
 class AABB

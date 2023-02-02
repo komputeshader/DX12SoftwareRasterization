@@ -42,9 +42,9 @@ groupshared float3 P2WS;
 groupshared float3 N0;
 groupshared float3 N1;
 groupshared float3 N2;
-groupshared float3 C0;
-groupshared float3 C1;
-groupshared float3 C2;
+groupshared float4 C0;
+groupshared float4 C1;
+groupshared float4 C2;
 groupshared float2 UV0;
 groupshared float2 UV1;
 groupshared float2 UV2;
@@ -142,9 +142,9 @@ void main(
 			C0, C1, C2);
 		if (ShowMeshlets)
 		{
-			C0 = instance.color;
-			C1 = instance.color;
-			C2 = instance.color;
+			C0 = float4(instance.color, 1.0);
+			C1 = float4(instance.color, 1.0);
+			C2 = float4(instance.color, 1.0);
 		}
 		GetTriangleVertexUVs(
 			i0, i1, i2,
@@ -217,9 +217,9 @@ void main(
 					N = normalize(N);
 
 					float3 color = denom * (
-						weight0 * C0 * InvW0 +
-						weight1 * C1 * InvW1 +
-						weight2 * C2 * InvW2);
+						weight0 * C0.rgb * InvW0 +
+						weight1 * C1.rgb * InvW1 +
+						weight2 * C2.rgb * InvW2);
 
 					float3 positionWS = denom * (
 						weight0 * P0WS * InvW0 +

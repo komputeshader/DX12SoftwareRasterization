@@ -10,10 +10,11 @@ uint DispatchSize(uint groupSize, uint elementsCount)
 
 float3 UnpackPosition(in uint2 packed)
 {
-	return f16tof32(uint3(
-		packed.x >> 16,
-		packed.x,
-		packed.y >> 16));
+	return f16tof32(
+		uint3(
+			packed.x >> 16,
+			packed.x,
+			packed.y >> 16));
 }
 
 float3 UnpackPosition(in VertexPosition packed)
@@ -34,7 +35,35 @@ float3 UnpackNormal(in uint packed)
 
 float3 UnpackNormal(in VertexNormal packed)
 {
-	return UnpackNormal(packed.normal);
+	return UnpackNormal(packed.packedNormal);
+}
+
+float2 UnpackTexcoords(in uint packed)
+{
+	return f16tof32(
+		uint2(
+			packed >> 16,
+			packed));
+}
+
+float2 UnpackTexcoords(in VertexUV packed)
+{
+	return UnpackTexcoords(packed.packedUV);
+}
+
+float4 UnpackColor(in uint2 packed)
+{
+	return f16tof32(
+		uint4(
+			packed.x >> 16,
+			packed.x,
+			packed.y >> 16,
+			packed.y));
+}
+
+float4 UnpackColor(in VertexColor packed)
+{
+	return UnpackColor(packed.packedColor);
 }
 
 AABB TransformAABB(

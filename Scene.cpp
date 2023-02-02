@@ -155,9 +155,9 @@ void Scene::_loadObj(
 		unindexedPositions.reserve(currentShapeFacesCount * 3);
 		std::vector<XMFLOAT3> unindexedNormals;
 		unindexedNormals.reserve(currentShapeFacesCount * 3);
-		std::vector<VertexColor> unindexedColors;
+		std::vector<XMFLOAT4> unindexedColors;
 		unindexedColors.reserve(currentShapeFacesCount * 3);
-		std::vector<VertexUV> unindexedUVs;
+		std::vector<XMFLOAT2> unindexedUVs;
 		unindexedUVs.reserve(currentShapeFacesCount * 3);
 
 		XMVECTOR min = g_XMFltMax.v;
@@ -181,10 +181,10 @@ void Scene::_loadObj(
 			}
 
 			// Loop over vertices in the face.
-			XMFLOAT3 tmpPosition = {};
-			XMFLOAT3 tmpNormal = {};
-			VertexColor tmpColor = {};
-			VertexUV tmpUV = {};
+			decltype(unindexedPositions)::value_type tmpPosition = {};
+			decltype(unindexedNormals)::value_type tmpNormal = {};
+			decltype(unindexedUVs)::value_type tmpUV = {};
+			decltype(unindexedColors)::value_type tmpColor = {};
 			for (size_t v = 0; v < fv; v++)
 			{
 				auto idx = shapes[s].mesh.indices[index_offset + v];
@@ -227,7 +227,7 @@ void Scene::_loadObj(
 				// Check if `texcoord_index` is zero or positive. negative = no texcoord data
 				if (idx.texcoord_index >= 0)
 				{
-					tmpUV.uv =
+					tmpUV =
 					{
 						attrib.texcoords[2 * size_t(idx.texcoord_index) + 0],
 						attrib.texcoords[2 * size_t(idx.texcoord_index) + 1]
@@ -235,7 +235,13 @@ void Scene::_loadObj(
 					unindexedUVs.push_back(tmpUV);
 				}
 
-				tmpColor.color = faceDiffuse;
+				tmpColor =
+				{
+					faceDiffuse.x,
+					faceDiffuse.y,
+					faceDiffuse.z,
+					1.0f
+				};
 				unindexedColors.push_back(tmpColor);
 			}
 
@@ -260,12 +266,12 @@ void Scene::_loadObj(
 			},
 			{
 				unindexedColors.data(),
-				sizeof(decltype(unindexedColors)::value_type::color),
+				sizeof(decltype(unindexedColors)::value_type),
 				sizeof(decltype(unindexedColors)::value_type)
 			},
 			{
 				unindexedUVs.data(),
-				sizeof(decltype(unindexedUVs)::value_type::uv),
+				sizeof(decltype(unindexedUVs)::value_type),
 				sizeof(decltype(unindexedUVs)::value_type)
 			}
 		};
@@ -310,16 +316,16 @@ void Scene::_loadObj(
 			sizeof(decltype(unindexedNormals)::value_type),
 			remap.data());
 		meshopt_remapVertexBuffer(
-			colorsCPU.data() + colorsCPUOldSize,
+			unindexedColors.data(),
 			unindexedColors.data(),
 			unindexedColors.size(),
-			sizeof(decltype(colorsCPU)::value_type),
+			sizeof(decltype(unindexedColors)::value_type),
 			remap.data());
 		meshopt_remapVertexBuffer(
-			texcoordsCPU.data() + texcoordsCPUOldSize,
+			unindexedUVs.data(),
 			unindexedUVs.data(),
 			unindexedUVs.size(),
-			sizeof(decltype(texcoordsCPU)::value_type),
+			sizeof(decltype(unindexedUVs)::value_type),
 			remap.data());
 		meshopt_optimizeVertexCache(
 			indicesCPU.data() + indicesCPUOldSize,
@@ -437,18 +443,50 @@ void Scene::_loadObj(
 		// pack vertex attributes
 		for (UINT vertex = 0; vertex < uniqueVertexCount; vertex++)
 		{
-			auto& dstPos = positionsCPU[positionsCPUOldSize + vertex].position;
-			auto& srcPos = unindexedPositions[vertex];
-			dstPos.x |= UINT(meshopt_quantizeHalf(srcPos.x)) << 16;
-			dstPos.x |= UINT(meshopt_quantizeHalf(srcPos.y));
-			dstPos.y |= UINT(meshopt_quantizeHalf(srcPos.z)) << 16;
+			auto& dst =
+				positionsCPU[positionsCPUOldSize + vertex].packedPosition;
+			auto& src = unindexedPositions[vertex];
+			dst.x |= UINT(meshopt_quantizeHalf(src.x)) << 16;
+			dst.x |= UINT(meshopt_quantizeHalf(src.y));
+			dst.y |= UINT(meshopt_quantizeHalf(src.z)) << 16;
+		}
 
-			auto& dstN = normalsCPU[normalsCPUOldSize + vertex].normal;
-			auto& srcN = unindexedNormals[vertex];
-			dstN =
-				(meshopt_quantizeUnorm(srcN.x * 0.5f + 0.5f, 10) << 20) |
-				(meshopt_quantizeUnorm(srcN.y * 0.5f + 0.5f, 10) << 10) |
-				meshopt_quantizeUnorm(srcN.z * 0.5f + 0.5f, 10);
+		if (!unindexedNormals.empty())
+		{
+			for (UINT vertex = 0; vertex < uniqueVertexCount; vertex++)
+			{
+				auto& dst = normalsCPU[normalsCPUOldSize + vertex].packedNormal;
+				auto& src = unindexedNormals[vertex];
+				dst =
+					(meshopt_quantizeUnorm(src.x * 0.5f + 0.5f, 10) << 20) |
+					(meshopt_quantizeUnorm(src.y * 0.5f + 0.5f, 10) << 10) |
+					meshopt_quantizeUnorm(src.z * 0.5f + 0.5f, 10);
+			}
+		}
+
+		if (!unindexedUVs.empty())
+		{
+			for (UINT vertex = 0; vertex < uniqueVertexCount; vertex++)
+			{
+				auto& dst =
+					texcoordsCPU[texcoordsCPUOldSize + vertex].packedUV;
+				auto& src = unindexedUVs[vertex];
+				dst |= UINT(meshopt_quantizeHalf(src.x)) << 16;
+				dst |= UINT(meshopt_quantizeHalf(src.y));
+			}
+		}
+
+		if (!unindexedColors.empty())
+		{
+			for (UINT vertex = 0; vertex < uniqueVertexCount; vertex++)
+			{
+				auto& dst = colorsCPU[colorsCPUOldSize + vertex].packedColor;
+				auto& src = unindexedColors[vertex];
+				dst.x |= UINT(meshopt_quantizeHalf(src.x)) << 16;
+				dst.x |= UINT(meshopt_quantizeHalf(src.y));
+				dst.y |= UINT(meshopt_quantizeHalf(src.z)) << 16;
+				dst.y |= UINT(meshopt_quantizeHalf(src.w));
+			}
 		}
 	}
 

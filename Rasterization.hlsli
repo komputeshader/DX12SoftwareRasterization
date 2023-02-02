@@ -61,13 +61,13 @@ void GetTriangleVertexNormals(
 void GetTriangleVertexColors(
 	in uint i0, in uint i1, in uint i2,
 	in uint baseVertexLocation,
-	out float3 c0,
-	out float3 c1,
-	out float3 c2)
+	out float4 c0,
+	out float4 c1,
+	out float4 c2)
 {
-	c0 = Colors[baseVertexLocation + i0].color;
-	c1 = Colors[baseVertexLocation + i1].color;
-	c2 = Colors[baseVertexLocation + i2].color;
+	c0 = UnpackColor(Colors[baseVertexLocation + i0]);
+	c1 = UnpackColor(Colors[baseVertexLocation + i1]);
+	c2 = UnpackColor(Colors[baseVertexLocation + i2]);
 }
 
 void GetTriangleVertexUVs(
@@ -77,9 +77,9 @@ void GetTriangleVertexUVs(
 	out float2 UV1,
 	out float2 UV2)
 {
-	UV0 = UVs[baseVertexLocation + i0].uv;
-	UV1 = UVs[baseVertexLocation + i1].uv;
-	UV2 = UVs[baseVertexLocation + i2].uv;
+	UV0 = UnpackTexcoords(UVs[baseVertexLocation + i0]);
+	UV1 = UnpackTexcoords(UVs[baseVertexLocation + i1]);
+	UV2 = UnpackTexcoords(UVs[baseVertexLocation + i2]);
 }
 
 #endif // OPAQUE

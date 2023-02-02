@@ -582,7 +582,7 @@ void HardwareRasterization::_createOpaquePassPSO()
 		{
 			"COLOR",
 			0,
-			DXGI_FORMAT_R32G32B32_FLOAT,
+			DXGI_FORMAT_R32G32_UINT,
 			2,
 			0,
 			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
@@ -591,7 +591,7 @@ void HardwareRasterization::_createOpaquePassPSO()
 		{
 			"TEXCOORD",
 			0,
-			DXGI_FORMAT_R32G32_FLOAT,
+			DXGI_FORMAT_R32_UINT,
 			3,
 			0,
 			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
