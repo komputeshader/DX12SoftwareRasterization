@@ -455,8 +455,7 @@ void ShadowsResources::Update()
 	memcpy(
 		_prevFrameCascadeVP,
 		_cascadeVP,
-		sizeof(XMFLOAT4X4) * Settings::MaxCascadesCount
-	);
+		sizeof(XMFLOAT4X4) * Settings::MaxCascadesCount);
 
 	const AABB& sceneAABB = Scene::CurrentScene->sceneAABB;
 	const Camera& camera = Scene::CurrentScene->camera;
@@ -746,6 +745,11 @@ void ShadowsResources::GUINewFrame()
 		//ImGui::Checkbox("Bound Cascades By Spheres", &_boundCascadesBySpheres);
 
 		ImGui::Checkbox("Show Meshlets", &Settings::ShowMeshlets);
+
+		if (Settings::CullingEnabled)
+		{
+			ImGui::Checkbox("Freeze Culling", &Settings::FreezeCulling);
+		}
 	}
 	ImGui::End();
 }

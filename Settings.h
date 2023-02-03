@@ -30,6 +30,7 @@ public:
 	static bool ClusterBackfaceCullingEnabled;
 	static bool SWREnabled;
 	static bool ShowMeshlets;
+	static bool FreezeCulling;
 	static const float CameraNearZ;
 	static const float CameraFarZ;
 	static const float GUITransparency;

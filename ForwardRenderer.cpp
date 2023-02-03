@@ -463,7 +463,7 @@ void ForwardRenderer::OnRender()
 	ShadowsResources::Shadows.GUINewFrame();
 	if (Settings::SWREnabled) _SWR->GUINewFrame();
 	_beginFrameRendering();
-	if (Settings::CullingEnabled)
+	if (Settings::CullingEnabled && !Settings::FreezeCulling)
 	{
 		_culler->Cull(
 			DX::ComputeCommandList.Get(),
