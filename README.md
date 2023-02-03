@@ -6,6 +6,7 @@ It comes with two scenes, Buddha - about 100M of really small triangles, and Pla
 Demo attemps to distribute load over threads  with the notion of big triangle - how big the triangle's screen area should be to rasterize it with a single thread, or to offload it to multiple-threads rasterizer, or hardware rasterizer?
 
 ![Buddha scene](https://github.com/komputeshader/DX12SoftwareRasterization/blob/main/BuddhaScene.png)
+![Freezed Culling](https://github.com/komputeshader/DX12SoftwareRasterization/blob/main/FreezedCulling.png)
 
 # How to build and run:
 1. git clone this repo.
