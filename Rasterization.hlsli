@@ -39,9 +39,9 @@ void GetTriangleVertexPositions(
 	out float3 p1,
 	out float3 p2)
 {
-	p0 = UnpackPosition(Positions[baseVertexLocation + i0]);
-	p1 = UnpackPosition(Positions[baseVertexLocation + i1]);
-	p2 = UnpackPosition(Positions[baseVertexLocation + i2]);
+	p0 = Positions[baseVertexLocation + i0].position;
+	p1 = Positions[baseVertexLocation + i1].position;
+	p2 = Positions[baseVertexLocation + i2].position;
 }
 
 #ifdef OPAQUE

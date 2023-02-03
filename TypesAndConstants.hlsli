@@ -28,9 +28,7 @@ static const uint HiZThreadsZ = 1;
 
 struct VertexPosition
 {
-	// .x : | 16 bits - x component | 16 bits - y component |
-	// .y : | 16 bits - z component | 16 bits - unused      |
-	uint2 packedPosition;
+	float3 position;
 };
 
 struct VertexNormal

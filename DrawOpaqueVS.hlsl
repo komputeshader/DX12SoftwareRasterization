@@ -19,7 +19,7 @@ cbuffer DrawCallConstants : register(b1)
 
 struct VSInput
 {
-	uint2 position : POSITION;
+	float3 position : POSITION;
 	uint normal : NORMAL;
 	uint2 color : COLOR;
 	uint uv : TEXCOORD0;
@@ -45,7 +45,7 @@ VSOutput main(VSInput input, uint instanceID : SV_InstanceID)
 
 	result.positionWS = mul(
 		instance.worldTransform,
-		float4(UnpackPosition(input.position), 1.0)).xyz;
+		float4(input.position, 1.0)).xyz;
 	result.positionCS = mul(VP, float4(result.positionWS, 1.0));
 	result.linearDepth = result.positionCS.w;
 	result.normal = UnpackNormal(input.normal);

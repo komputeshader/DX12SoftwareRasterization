@@ -441,14 +441,12 @@ void Scene::_loadObj(
 		objectMax = XMVectorMax(objectMax, max);
 
 		// pack vertex attributes
+		// TODO: pack positions
 		for (UINT vertex = 0; vertex < uniqueVertexCount; vertex++)
 		{
-			auto& dst =
-				positionsCPU[positionsCPUOldSize + vertex].packedPosition;
+			auto& dst = positionsCPU[positionsCPUOldSize + vertex].position;
 			auto& src = unindexedPositions[vertex];
-			dst.x |= UINT(meshopt_quantizeHalf(src.x)) << 16;
-			dst.x |= UINT(meshopt_quantizeHalf(src.y));
-			dst.y |= UINT(meshopt_quantizeHalf(src.z)) << 16;
+			dst = src;
 		}
 
 		if (!unindexedNormals.empty())

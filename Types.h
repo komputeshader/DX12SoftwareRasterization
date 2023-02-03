@@ -22,9 +22,7 @@ static const DirectX::XMFLOAT4X4 Identity4x4 =
 
 struct VertexPosition
 {
-	// .x : |16 bits - x component | 16 bits - y component |
-	// .y : |16 bits - z component | 16 bits - unused      |
-	DirectX::XMUINT2 packedPosition;
+	DirectX::XMFLOAT3 position;
 };
 
 struct VertexNormal
