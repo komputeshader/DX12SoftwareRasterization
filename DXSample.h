@@ -38,6 +38,8 @@ public:
 	virtual void OnLeftButtonUp(UINT /*x*/, UINT /*y*/) {}
 	virtual void OnRightButtonDown(UINT /*x*/, UINT /*y*/) {}
 	virtual void OnRightButtonUp(UINT /*x*/, UINT /*y*/) {}
+	virtual void OnKeyDown(UINT8 /*key*/) {}
+	virtual void OnKeyUp(UINT8 /*key*/) {}
 	virtual void OnDisplayChanged() {}
 
 	// Accessors.

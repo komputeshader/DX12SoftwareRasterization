@@ -97,29 +97,24 @@ LRESULT CALLBACK Win32Application::WindowProc(HWND hWnd, UINT message, WPARAM wP
         return 0;
 
 	case WM_MOUSEMOVE:
+        UINT x = LOWORD(lParam);
+        UINT y = HIWORD(lParam);
 		if (pSample && static_cast<UINT8>(wParam) == MK_RBUTTON)
 		{
-			UINT x = LOWORD(lParam);
-			UINT y = HIWORD(lParam);
 			pSample->OnMouseMove(x, y);
 		}
+        else if (pSample)
+        {
+            pSample->OnRightButtonDown(x, y);
+        }
 		return 0;
 
-	case WM_RBUTTONDOWN:
-		{
-			UINT x = LOWORD(lParam);
-			UINT y = HIWORD(lParam);
-			pSample->OnRightButtonDown(x, y);
-		}
-		return 0;
-
-	case WM_RBUTTONUP:
-		{
-			UINT x = LOWORD(lParam);
-			UINT y = HIWORD(lParam);
-			pSample->OnRightButtonUp(x, y);
-		}
-		return 0;
+    case WM_KEYDOWN:
+        if (pSample)
+        {
+            pSample->OnKeyDown(static_cast<UINT8>(wParam));
+        }
+        return 0;
 
 	case WM_PAINT:
 		if (pSample)

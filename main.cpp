@@ -25,6 +25,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     ForwardRenderer sample(
         Settings::BackBufferWidth,
         Settings::BackBufferHeight,
-        L"HOLD Right Mouse Button to turn camera");
+        L"HOLD Right Mouse Button to turn camera, WASD to move camera, press F to freeze culling");
     return Win32Application::Run(&sample, hInstance, nCmdShow);
 }

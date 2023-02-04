@@ -25,6 +25,7 @@ public:
 	void OnKeyboardInput();
 	virtual void OnMouseMove(UINT x, UINT y);
 	virtual void OnRightButtonDown(UINT x, UINT y);
+	virtual void OnKeyDown(UINT8 key);
 
 	void PreparePrevFrameDepth(ID3D12Resource* depth);
 	ID3D12Resource* GetCulledCommands(UINT frame, UINT frustum)

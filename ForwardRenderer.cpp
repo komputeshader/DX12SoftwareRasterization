@@ -958,9 +958,17 @@ void ForwardRenderer::OnDestroy()
 	CloseHandle(DX::FenceEvent);
 }
 
+// used for camera movement
 void ForwardRenderer::OnKeyboardInput()
 {
-	float dt = _timer.DeltaTime() * 200.0f;
+	float cameraSpeed = 200.0f;
+
+	if (GetAsyncKeyState(VK_SHIFT) & 0x8000)
+	{
+		cameraSpeed = 1000.0f;
+	}
+
+	float dt = _timer.DeltaTime() * cameraSpeed;
 
 	Camera& camera = Scene::CurrentScene->camera;
 
@@ -968,41 +976,43 @@ void ForwardRenderer::OnKeyboardInput()
 		|| (GetAsyncKeyState('A') & 0x8000))
 	{
 		camera.Strafe(-dt);
-		return;
 	}
 
 	if ((GetAsyncKeyState(VK_RIGHT) & 0x8000)
 		|| (GetAsyncKeyState('D') & 0x8000))
 	{
 		camera.Strafe(dt);
-		return;
 	}
 
 	if ((GetAsyncKeyState(VK_UP) & 0x8000)
 		|| (GetAsyncKeyState('W') & 0x8000))
 	{
 		camera.Walk(dt);
-		return;
 	}
 
 	if ((GetAsyncKeyState(VK_DOWN) & 0x8000)
 		|| (GetAsyncKeyState('S') & 0x8000))
 	{
 		camera.Walk(-dt);
-		return;
 	}
 
 	if ((GetAsyncKeyState(VK_SPACE) & 0x8000)
 		|| (GetAsyncKeyState('E') & 0x8000))
 	{
 		camera.MoveVertical(dt);
-		return;
 	}
 
 	if (GetAsyncKeyState('Q') & 0x8000)
 	{
 		camera.MoveVertical(-dt);
-		return;
+	}
+}
+void ForwardRenderer::OnKeyDown(UINT8 key)
+{
+	// F is 0x46
+	if (key == 0x46)
+	{
+		Settings::FreezeCulling = !Settings::FreezeCulling;
 	}
 }
 
@@ -1016,8 +1026,7 @@ void ForwardRenderer::OnMouseMove(UINT x, UINT y)
 	Scene::CurrentScene->camera.RotateX(dy);
 	Scene::CurrentScene->camera.RotateY(dx);
 
-	_lastMousePos.x = x;
-	_lastMousePos.y = y;
+	OnRightButtonDown(x, y);
 }
 
 void ForwardRenderer::OnRightButtonDown(UINT x, UINT y)
