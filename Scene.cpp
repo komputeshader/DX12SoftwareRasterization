@@ -6,7 +6,10 @@
 #include <iostream>
 #include <unordered_map>
 
-#include "rapidobj.hpp"
+#define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
+// Optional. define TINYOBJLOADER_USE_MAPBOX_EARCUT gives robust trinagulation. Requires C++11
+//#define TINYOBJLOADER_USE_MAPBOX_EARCUT
+#include "tiny_obj_loader.h"
 #include "meshoptimizer/meshoptimizer.h"
 
 Scene* Scene::CurrentScene;
@@ -120,25 +123,29 @@ void Scene::_loadObj(
 	UINT instancesCountX,
 	UINT instancesCountZ)
 {
-	rapidobj::Result result = rapidobj::ParseFile(OBJPath);
-
-	if (result.error)
+	tinyobj::ObjReaderConfig reader_config;
+	// Path to material files
+	reader_config.mtl_search_path = mtlSearchPath;
+	
+	tinyobj::ObjReader reader;
+	
+	if (!reader.ParseFromFile(OBJPath, reader_config))
 	{
-		std::cout << result.error.code.message() << '\n';
-		assert(false);
+		if (!reader.Error().empty())
+		{
+			std::cerr << "TinyObjReader: " << reader.Error();
+		}
+		exit(1);
+	}
+	
+	if (!reader.Warning().empty())
+	{
+		std::cout << "TinyObjReader: " << reader.Warning();
 	}
 
-	bool success = Triangulate(result);
-
-	if (!success)
-	{
-		std::cout << result.error.code.message() << '\n';
-		assert(false);
-	}
-
-	auto& attrib = result.attributes;
-	auto& shapes = result.shapes;
-	auto& materials = result.materials;
+	auto& attrib = reader.GetAttrib();
+	auto& shapes = reader.GetShapes();
+	auto& materials = reader.GetMaterials();
 
 	std::vector<MeshMeta> meshesMeta;
 	XMVECTOR objectMin = g_XMFltMax.v;
@@ -190,9 +197,9 @@ void Scene::_loadObj(
 				auto idx = shapes[s].mesh.indices[index_offset + v];
 				tmpPosition =
 				{
-					attrib.positions[3 * size_t(idx.position_index) + 0],
-					attrib.positions[3 * size_t(idx.position_index) + 1],
-					attrib.positions[3 * size_t(idx.position_index) + 2]
+					attrib.vertices[3 * size_t(idx.vertex_index) + 0],
+					attrib.vertices[3 * size_t(idx.vertex_index) + 1],
+					attrib.vertices[3 * size_t(idx.vertex_index) + 2]
 				};
 
 				tmpPosition.x *= scale;
