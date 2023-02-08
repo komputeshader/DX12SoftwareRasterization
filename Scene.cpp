@@ -125,7 +125,7 @@ void Scene::_loadObj(
 	if (result.error)
 	{
 		std::cout << result.error.code.message() << '\n';
-		return;
+		assert(false);
 	}
 
 	bool success = Triangulate(result);
@@ -133,7 +133,7 @@ void Scene::_loadObj(
 	if (!success)
 	{
 		std::cout << result.error.code.message() << '\n';
-		return;
+		assert(false);
 	}
 
 	auto& attrib = result.attributes;
