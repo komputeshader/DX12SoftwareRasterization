@@ -60,7 +60,6 @@ private:
 
 	void _loadObj(
 		const std::string& OBJPath,
-		const std::string& mtlSearchPath,
 		float translation = 0.0f,
 		float scale = 1.0f,
 		UINT instancesCountX = 1,

@@ -251,7 +251,7 @@
     <ClInclude Include="meshoptimizer\meshoptimizer.h">
       <Filter>Header Files\meshoptimizer</Filter>
     </ClInclude>
-    <ClInclude Include="tiny_obj_loader.h">
+    <ClInclude Include="fast_obj.h">
       <Filter>Header Files\Utils</Filter>
     </ClInclude>
   </ItemGroup>

@@ -6,10 +6,8 @@
 #include <iostream>
 #include <unordered_map>
 
-#define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
-// Optional. define TINYOBJLOADER_USE_MAPBOX_EARCUT gives robust trinagulation. Requires C++11
-//#define TINYOBJLOADER_USE_MAPBOX_EARCUT
-#include "tiny_obj_loader.h"
+#define FAST_OBJ_IMPLEMENTATION
+#include "fast_obj.h"
 #include "meshoptimizer/meshoptimizer.h"
 
 Scene* Scene::CurrentScene;
@@ -46,7 +44,6 @@ void Scene::LoadBuddha()
 
 	_loadObj(
 		"Buddha//buddha.obj",
-		"",
 		50.0f,
 		100.0f,
 		10,
@@ -93,7 +90,6 @@ void Scene::LoadPlant()
 
 	_loadObj(
 		"powerplant//powerplant.obj",
-		"./powerplant",
 		0.0f,
 		0.01f,
 		3,
@@ -117,112 +113,101 @@ void Scene::LoadPlant()
 
 void Scene::_loadObj(
 	const std::string& OBJPath,
-	const std::string& mtlSearchPath,
 	float translation,
 	float scale,
 	UINT instancesCountX,
 	UINT instancesCountZ)
 {
-	tinyobj::ObjReaderConfig reader_config;
-	// Path to material files
-	reader_config.mtl_search_path = mtlSearchPath;
-	
-	tinyobj::ObjReader reader;
-	
-	if (!reader.ParseFromFile(OBJPath, reader_config))
+	fastObjMesh* OBJMesh = fast_obj_read(OBJPath.c_str());
+	if (!OBJMesh)
 	{
-		if (!reader.Error().empty())
-		{
-			std::cerr << "TinyObjReader: " << reader.Error();
-		}
-		exit(1);
+		Utils::PrintToOutput(
+			"Error loading %s: file not found\n",
+			OBJPath.c_str());
+		assert(false);
 	}
-	
-	if (!reader.Warning().empty())
-	{
-		std::cout << "TinyObjReader: " << reader.Warning();
-	}
-
-	auto& attrib = reader.GetAttrib();
-	auto& shapes = reader.GetShapes();
-	auto& materials = reader.GetMaterials();
 
 	std::vector<MeshMeta> meshesMeta;
 	XMVECTOR objectMin = g_XMFltMax.v;
 	XMVECTOR objectMax = -g_XMFltMax.v;
 
-	UINT64 facesCount = 0;
-	for (size_t s = 0; s < shapes.size(); s++)
-	{
-		UINT64 currentShapeFacesCount = shapes[s].mesh.num_face_vertices.size();
-		facesCount += currentShapeFacesCount;
+	std::vector<XMFLOAT3> unindexedPositions;
+	std::vector<XMFLOAT3> unindexedNormals;
+	std::vector<XMFLOAT4> unindexedColors;
+	std::vector<XMFLOAT2> unindexedUVs;
 
-		// read mesh data
-		std::vector<XMFLOAT3> unindexedPositions;
-		unindexedPositions.reserve(currentShapeFacesCount * 3);
-		std::vector<XMFLOAT3> unindexedNormals;
-		unindexedNormals.reserve(currentShapeFacesCount * 3);
-		std::vector<XMFLOAT4> unindexedColors;
-		unindexedColors.reserve(currentShapeFacesCount * 3);
-		std::vector<XMFLOAT2> unindexedUVs;
-		unindexedUVs.reserve(currentShapeFacesCount * 3);
+	UINT64 facesCount = 0;
+	for (UINT group = 0; group < OBJMesh->group_count; group++)
+	{
+		const fastObjGroup& currentGroup = OBJMesh->groups[group];
+
+		UINT64 currentFacesCount = currentGroup.face_count;
+		facesCount += currentFacesCount;
+
+		unindexedPositions.reserve(currentFacesCount * 3);
+		unindexedNormals.reserve(currentFacesCount * 3);
+		unindexedColors.reserve(currentFacesCount * 3);
+		unindexedUVs.reserve(currentFacesCount * 3);
 
 		XMVECTOR min = g_XMFltMax.v;
 		XMVECTOR max = -g_XMFltMax.v;
 
-		// Loop over faces(polygon)
-		size_t index_offset = 0;
-		for (size_t f = 0; f < currentShapeFacesCount; f++)
+		int idx = 0;
+		for (UINT face = 0; face < currentGroup.face_count; face++)
 		{
-			size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
-			size_t fm = shapes[s].mesh.material_ids[f];
-			XMFLOAT3 faceDiffuse;
-			if (mtlSearchPath.size())
-			{
-				auto& d = materials[fm].diffuse;
-				faceDiffuse = { d[0], d[1], d[2] };
-			}
-			else
-			{
-				faceDiffuse = { 0.8f, 0.8f, 0.8f };
-			}
+			// TODO: ensure triangulation
+			UINT fv = OBJMesh->face_vertices[currentGroup.face_offset + face];
 
-			// Loop over vertices in the face.
-			decltype(unindexedPositions)::value_type tmpPosition = {};
-			decltype(unindexedNormals)::value_type tmpNormal = {};
-			decltype(unindexedUVs)::value_type tmpUV = {};
-			decltype(unindexedColors)::value_type tmpColor = {};
-			for (size_t v = 0; v < fv; v++)
+			for (UINT vertex = 0; vertex < fv; vertex++)
 			{
-				auto idx = shapes[s].mesh.indices[index_offset + v];
-				tmpPosition =
+				fastObjIndex attributeIndices =
+					OBJMesh->indices[currentGroup.index_offset + idx];
+
+				decltype(unindexedPositions)::value_type tmpPosition = {};
+				decltype(unindexedNormals)::value_type tmpNormal = {};
+				decltype(unindexedUVs)::value_type tmpUV = {};
+				decltype(unindexedColors)::value_type tmpColor = {};
+
+				if (attributeIndices.p)
 				{
-					attrib.vertices[3 * size_t(idx.vertex_index) + 0],
-					attrib.vertices[3 * size_t(idx.vertex_index) + 1],
-					attrib.vertices[3 * size_t(idx.vertex_index) + 2]
-				};
+					tmpPosition =
+					{
+						OBJMesh->positions[3 * attributeIndices.p + 0],
+						OBJMesh->positions[3 * attributeIndices.p + 1],
+						OBJMesh->positions[3 * attributeIndices.p + 2]
+					};
 
-				tmpPosition.x *= scale;
-				tmpPosition.y *= scale;
-				tmpPosition.z *= scale;
+					tmpPosition.x *= scale;
+					tmpPosition.y *= scale;
+					tmpPosition.z *= scale;
 
-				unindexedPositions.push_back(tmpPosition);
+					unindexedPositions.push_back(tmpPosition);
 
-				min = XMVectorMin(
-					min,
-					XMLoadFloat3(&tmpPosition));
-				max = XMVectorMax(
-					max,
-					XMLoadFloat3(&tmpPosition));
+					min = XMVectorMin(
+						min,
+						XMLoadFloat3(&tmpPosition));
+					max = XMVectorMax(
+						max,
+						XMLoadFloat3(&tmpPosition));
+				}
 
-				// Check if `normal_index` is zero or positive. negative = no normal data
-				if (idx.normal_index >= 0)
+				if (attributeIndices.t)
+				{
+					tmpUV =
+					{
+						OBJMesh->texcoords[2 * attributeIndices.t + 0],
+						OBJMesh->texcoords[2 * attributeIndices.t + 1]
+					};
+					unindexedUVs.push_back(tmpUV);
+				}
+
+				if (attributeIndices.n)
 				{
 					tmpNormal =
 					{
-						attrib.normals[3 * size_t(idx.normal_index) + 0],
-						attrib.normals[3 * size_t(idx.normal_index) + 1],
-						attrib.normals[3 * size_t(idx.normal_index) + 2]
+						OBJMesh->normals[3 * attributeIndices.n + 0],
+						OBJMesh->normals[3 * attributeIndices.n + 1],
+						OBJMesh->normals[3 * attributeIndices.n + 2]
 					};
 					XMStoreFloat3(
 						&tmpNormal,
@@ -231,31 +216,11 @@ void Scene::_loadObj(
 					unindexedNormals.push_back(tmpNormal);
 				}
 
-				// Check if `texcoord_index` is zero or positive. negative = no texcoord data
-				if (idx.texcoord_index >= 0)
-				{
-					tmpUV =
-					{
-						attrib.texcoords[2 * size_t(idx.texcoord_index) + 0],
-						attrib.texcoords[2 * size_t(idx.texcoord_index) + 1]
-					};
-					unindexedUVs.push_back(tmpUV);
-				}
-
-				tmpColor =
-				{
-					faceDiffuse.x,
-					faceDiffuse.y,
-					faceDiffuse.z,
-					1.0f
-				};
+				tmpColor = { 0.8f, 0.8f, 0.8f, 1.0f };
 				unindexedColors.push_back(tmpColor);
+
+				idx++;
 			}
-
-			index_offset += fv;
-
-			// per-face material
-			//shapes[s].mesh.material_ids[f];
 		}
 
 		// optimize mesh data and perform indexing
@@ -283,7 +248,7 @@ void Scene::_loadObj(
 			}
 		};
 
-		UINT64 indexCount = currentShapeFacesCount * 3;
+		UINT64 indexCount = currentFacesCount * 3;
 		std::vector<UINT> remap(indexCount);
 		size_t uniqueVertexCount = meshopt_generateVertexRemapMulti(
 			remap.data(),
@@ -355,9 +320,9 @@ void Scene::_loadObj(
 			maxTriangles);
 		std::vector<meshopt_Meshlet> meshlets(maxMeshlets);
 		// indices into positionsCPU + offset
-		std::vector<UINT> meshletVertices(maxMeshlets * maxVertices);
+		std::vector<UINT> meshletVertices(maxMeshlets* maxVertices);
 		std::vector<UINT8> meshletTriangles(
-			maxMeshlets * maxTriangles * 3);
+			maxMeshlets* maxTriangles * 3);
 
 		UINT64 meshletCount = meshopt_buildMeshlets(
 			meshlets.data(),
@@ -493,7 +458,14 @@ void Scene::_loadObj(
 				dst.y |= UINT(meshopt_quantizeHalf(src.w));
 			}
 		}
+
+		unindexedPositions.clear();
+		unindexedNormals.clear();
+		unindexedColors.clear();
+		unindexedUVs.clear();
 	}
+
+	fast_obj_destroy(OBJMesh);
 
 	AABB objectBoundingVolume;
 	XMStoreFloat3(

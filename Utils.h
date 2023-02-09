@@ -75,6 +75,16 @@ inline UINT AlignForUavCounter(UINT bufferSize)
 	return (bufferSize + (alignment - 1)) & ~(alignment - 1);
 }
 
+inline void PrintToOutput(const char* format, ...)
+{
+	char buffer[1024];
+	va_list arg;
+	va_start(arg, format);
+	_vsnprintf_s(buffer, sizeof(buffer), format, arg);
+	va_end(arg);
+	OutputDebugStringA(buffer);
+}
+
 inline UINT AsUINT(float f)
 {
 	return *reinterpret_cast<UINT*>(&f);
